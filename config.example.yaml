@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# HLS Streamer — Playlist Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+stream:
+  name:       "My Continuous Stream"   # display name everywhere
+  channel_id: "hls-streamer"           # stable XMLTV channel id  (URL-safe)
+
+  loop:       true    # false = play once then exit
+  loop_count: -1      # -1 = infinite  |  N = play exactly N times
+
+videos:
+  # Required fields
+  #   title    — shown in logs, /now, /xmltv, player ticker
+  #   url      — http/https/rtmp/file supported
+  #   duration — seconds of this clip to stream (can be < actual video length)
+  #
+  # Optional XMLTV metadata
+  #   description — shown in Jellyfin/Plex guide detail view (defaults to title)
+  #   category    — genre tag in XMLTV  (defaults to "Movie")
+  #                 Common values: Movie · Sports · News · Documentary
+  #                                Entertainment · Children · Series
+
+  - title:       "Big Buck Bunny"
+    url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+    duration:    60
+    description: "A large and lovable rabbit deals with bullying."
+    category:    "Movie"
+
+  - title:       "Elephant Dream"
+    url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+    duration:    60
+    description: "The world's first open-source animated film."
+    category:    "Movie"
+
+  - title:       "For Bigger Blazes"
+    url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    duration:    15
+    description: "H.264 Baseline Level 3.0 sample."
+    category:    "Entertainment"
+
+  - title:       "Subaru Outback"
+    url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4"
+    duration:    55
+    description: "Subaru Outback on street and dirt."
+    category:    "Documentary"
+
+  - title:       "Tears of Steel"
+    url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+    duration:    60
+    description: "A Blender Foundation short film."
+    category:    "Movie"

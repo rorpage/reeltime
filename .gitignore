@@ -1,0 +1,19 @@
+# Environment
+.env
+.env.local
+
+# Configuration
+config.yaml
+
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+
+# Runtime
+/tmp/hls/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  hls-streamer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hls-streamer
+    restart: unless-stopped
+
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+
+    volumes:
+      - ./config.yaml:/config/config.yaml:ro
+
+    environment:
+      PORT:             "8080"
+      HLS_SEG:          "${HLS_SEG:-6}"
+      HLS_SIZE:         "${HLS_SIZE:-10}"
+      RESOLUTION:       "${RESOLUTION:-1280:720}"
+      VIDEO_BITRATE:    "${VIDEO_BITRATE:-2000k}"
+      AUDIO_BITRATE:    "${AUDIO_BITRATE:-128k}"
+      FRAMERATE:        "${FRAMERATE:-30}"
+      FFMPEG_THREADS:   "${FFMPEG_THREADS:-0}"
+      # How many seconds before a clip ends to pre-queue the next entry.
+      # Raise on slow origins; lower for more accurate /health reporting.
+      QUEUE_AHEAD_SECS: "${QUEUE_AHEAD_SECS:-10}"
+      FIFO_PATH:        "${FIFO_PATH:-/tmp/playlist.ffconcat}"
+      # DEBUG: "1"
+
+    deploy:
+      resources:
+        limits:
+          cpus:   "${MAX_CPU:-1.0}"
+          memory: "${MAX_MEM:-1G}"
+        reservations:
+          cpus:   "${MIN_CPU:-0.25}"
+          memory: "${MIN_MEM:-256M}"
+
+    healthcheck:
+      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 90s
+      retries:      3

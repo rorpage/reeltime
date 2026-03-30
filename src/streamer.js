@@ -1,0 +1,836 @@
+'use strict';
+
+/**
+ * HLS Video Streamer — ffconcat FIFO edition
+ *
+ * Endpoints
+ * ─────────────────────────────────────────────────
+ *  GET /                Web player  (HLS.js + now-playing ticker)
+ *  GET /stream.m3u8     Live HLS playlist
+ *  GET /seg_*.ts        MPEG-TS segments
+ *  GET /now             Now-playing JSON  (title · position · next)
+ *  GET /xmltv           XMLTV guide  (?hours=N, default 4, max 24)
+ *  GET /xmltv.xml       Alias for /xmltv
+ *  GET /channels.m3u    M3U tuner file for Jellyfin / Plex
+ *  GET /playlist.m3u    Alias for /channels.m3u
+ *  GET /health          Health + loop state JSON
+ */
+
+const { spawn, execSync } = require('node:child_process');
+const fs                  = require('node:fs');
+const path                = require('node:path');
+const http                = require('node:http');
+const yaml                = require('js-yaml');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CFG = {
+  configPath:   process.env.CONFIG_PATH      || '/config/config.yaml',
+  hlsDir:       process.env.HLS_DIR          || '/tmp/hls',
+  fifoPath:     process.env.FIFO_PATH        || '/tmp/playlist.ffconcat',
+  port:        +(process.env.PORT            || 8080),
+  segDuration: +(process.env.HLS_SEG         || 6),
+  listSize:    +(process.env.HLS_SIZE         || 10),
+  resolution:    process.env.RESOLUTION      || '1280:720',
+  videoBitrate:  process.env.VIDEO_BITRATE   || '2000k',
+  audioBitrate:  process.env.AUDIO_BITRATE   || '128k',
+  framerate:   +(process.env.FRAMERATE        || 30),
+  threads:     +(process.env.FFMPEG_THREADS   || 0),
+  queueAhead:  +(process.env.QUEUE_AHEAD_SECS || 10),
+  debug:         process.env.DEBUG === '1',
+};
+
+const [VW, VH] = CFG.resolution.split(':').map(Number);
+const GOP      = CFG.framerate * CFG.segDuration;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Logging
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ts    = () => new Date().toISOString();
+const info  = (...a) => console.log( `${ts()} INFO `, ...a);
+const warn  = (...a) => console.warn( `${ts()} WARN `, ...a);
+const error = (...a) => console.error(`${ts()} ERROR`, ...a);
+const debug = (...a) => CFG.debug && console.log(`${ts()} DEBUG`, ...a);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config loader
+// ─────────────────────────────────────────────────────────────────────────────
+
+function loadConfig() {
+  if (!fs.existsSync(CFG.configPath)) {
+    error(`Config not found: ${CFG.configPath}`);
+    error('Mount your playlist:  -v /path/to/config.yaml:/config/config.yaml:ro');
+    process.exit(1);
+  }
+
+  let raw;
+  try   { raw = yaml.load(fs.readFileSync(CFG.configPath, 'utf8')); }
+  catch (e) { error(`YAML parse error: ${e.message}`); process.exit(1); }
+
+  if (!Array.isArray(raw?.videos) || raw.videos.length === 0) {
+    error('config.yaml must contain a non-empty "videos" list');
+    process.exit(1);
+  }
+
+  const videos = raw.videos.map((v, i) => {
+    const n = i + 1;
+    if (!v.url)      { error(`Video ${n}: "url" is required`); process.exit(1); }
+    if (!v.title)    warn(`Video ${n}: no "title" — using URL basename`);
+    if (!v.duration) warn(`Video ${n}: no "duration" — defaulting to 3600 s`);
+    return {
+      title:       String(v.title       || path.basename(String(v.url))),
+      url:         String(v.url),
+      duration:    Number(v.duration)   > 0 ? Number(v.duration)   : 3600,
+      // Optional XMLTV metadata
+      description: String(v.description || v.title || path.basename(String(v.url))),
+      category:    String(v.category    || 'Movie'),
+    };
+  });
+
+  return {
+    name:       String(raw.stream?.name       || 'HLS Stream'),
+    // channelId must be stable and URL-safe — used as the XMLTV channel id
+    channelId:  String(raw.stream?.channel_id || 'hls-streamer'),
+    loop:              raw.stream?.loop !== false,
+    loopCount:  Number(raw.stream?.loop_count ?? -1),
+    videos,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Filesystem helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setupDirs() {
+  fs.mkdirSync(CFG.hlsDir, { recursive: true });
+  const stale = fs.readdirSync(CFG.hlsDir)
+    .filter(f => f.endsWith('.ts') || f.endsWith('.m3u8'));
+  stale.forEach(f => { try { fs.unlinkSync(path.join(CFG.hlsDir, f)); } catch (_) {} });
+  if (stale.length) info(`Cleaned ${stale.length} stale HLS file(s)`);
+}
+
+function createFifo() {
+  try { fs.unlinkSync(CFG.fifoPath); } catch (_) {}
+  execSync(`mkfifo "${CFG.fifoPath}"`);
+  info(`Named FIFO created: ${CFG.fifoPath}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Schedule  —  wall-clock aligned programme listings
+//
+// Every time a clip entry is written into the FIFO, addToSchedule() records
+// its LOGICAL playback window (not the FIFO write time) so that:
+//
+//   • /now   can report accurate position / remaining / progress
+//   • /xmltv can return precise start/stop times for any future window
+//
+// Design notes
+// ─────────────────────────────────────────────────────────────────────────────
+//
+//   schedNextStart is updated to entry.endAt each time a clip is added, so
+//   the logical clock advances by duration regardless of QUEUE_AHEAD_SECS.
+//
+//   getScheduleWindow() merges already-written entries with extrapolated
+//   future entries so the XMLTV guide can cover several hours ahead even
+//   though the FIFO writer is only QUEUE_AHEAD_SECS in front of playback.
+//
+// Entry shape:
+//   { title, url, duration, description, category,
+//     startAt(ms), endAt(ms), videoIndex, pass }
+// ─────────────────────────────────────────────────────────────────────────────
+
+const schedule      = [];         // chronologically ordered entries
+let   schedNextStart = null;      // epoch-ms when the next clip will start
+const HISTORY_MS    = 2 * 3600 * 1000;  // keep 2 h of past entries
+
+/**
+ * Record one clip in the logical schedule.
+ * Called once per clip, immediately before its FIFO entry is written.
+ */
+function addToSchedule(video, videoIndex, pass) {
+  const startAt = schedNextStart ?? Date.now();  // first clip anchors to now
+  const endAt   = startAt + video.duration * 1000;
+
+  schedule.push({ ...video, startAt, endAt, videoIndex, pass });
+  schedNextStart = endAt;
+
+  // Prune history (always keep ≥ 1 entry so seed-based extrapolation works)
+  const cutoff = Date.now() - HISTORY_MS;
+  while (schedule.length > 1 && schedule[0].endAt < cutoff) schedule.shift();
+}
+
+/**
+ * The clip that should be playing right now according to wall-clock time.
+ * Falls back to the last known entry (stream may have ended or is starting).
+ */
+function getCurrentEntry() {
+  const now = Date.now();
+  return (
+    schedule.find(e => e.startAt <= now && now < e.endAt) ??
+    (schedule.length ? schedule[schedule.length - 1] : null)
+  );
+}
+
+/**
+ * Return a sorted array of schedule entries that overlap [fromMs, toMs].
+ *
+ * Combines:
+ *   • already-written entries from schedule[] (known, accurate)
+ *   • extrapolated entries beyond the last written entry (computed on demand)
+ *
+ * The extrapolation mirrors writeFifo()'s loop/termination logic exactly,
+ * so it respects loop: false and finite loop_count values correctly.
+ *
+ * @param {number}   fromMs     window start  (epoch ms)
+ * @param {number}   toMs       window end    (epoch ms)
+ * @param {object[]} videos     full video list from config
+ * @param {boolean}  loop
+ * @param {number}   loopCount  -1 = infinite
+ */
+function getScheduleWindow(fromMs, toMs, videos, loop, loopCount) {
+  const forever = loop && loopCount <= 0;
+
+  // ── Known entries that overlap the window ──────────────────────────────────
+  const known = schedule.filter(e => e.endAt > fromMs && e.startAt < toMs);
+
+  // ── Extrapolate beyond the last written entry ──────────────────────────────
+  const seed  = schedule.length ? schedule[schedule.length - 1] : null;
+  const extra = [];
+
+  if (seed) {
+    let cursor   = seed.endAt;
+    let vidIndex = seed.videoIndex;
+    let pass     = seed.pass;
+
+    while (cursor < toMs) {
+      // Advance playlist pointer (wraps around and increments pass)
+      vidIndex++;
+      if (vidIndex >= videos.length) { vidIndex = 0; pass++; }
+
+      // Termination — mirrors the outer-loop conditions in writeFifo()
+      if (!loop && pass >= 1)                    break;
+      if (loop && !forever && pass >= loopCount) break;
+
+      const v     = videos[vidIndex];
+      const endAt = cursor + v.duration * 1000;
+
+      if (endAt > fromMs) {
+        extra.push({ ...v, startAt: cursor, endAt, videoIndex: vidIndex, pass });
+      }
+      cursor = endAt;
+    }
+  }
+
+  // Merge, deduplicate by startAt, sort ascending
+  const knownStarts = new Set(known.map(e => e.startAt));
+  return [...known, ...extra.filter(e => !knownStarts.has(e.startAt))]
+    .sort((a, b) => a.startAt - b.startAt);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// XMLTV  +  M3U  formatters
+// ─────────────────────────────────────────────────────────────────────────────
+
+const pad2 = n => String(n).padStart(2, '0');
+
+/** Format a JS timestamp as an XMLTV date string: "YYYYMMDDHHmmss +0000" */
+function toXMLTVDate(ms) {
+  const d = new Date(ms);
+  return (
+    d.getUTCFullYear()         +
+    pad2(d.getUTCMonth() + 1)  +
+    pad2(d.getUTCDate())       +
+    pad2(d.getUTCHours())      +
+    pad2(d.getUTCMinutes())    +
+    pad2(d.getUTCSeconds())    +
+    ' +0000'
+  );
+}
+
+/** XML-safe string escaping. */
+function escXML(s) {
+  return String(s)
+    .replace(/&/g,  '&amp;')
+    .replace(/</g,  '&lt;')
+    .replace(/>/g,  '&gt;')
+    .replace(/"/g,  '&quot;')
+    .replace(/'/g,  '&apos;');
+}
+
+/**
+ * Build a complete XMLTV document.
+ * One <channel> and one <programme> per entry in the window.
+ *
+ * Compatible with:  Jellyfin · Plex (via xTeve/Threadfin) · Emby · Kodi
+ */
+function buildXMLTV(entries, channelId, streamName) {
+  const id   = escXML(channelId);
+  const name = escXML(streamName);
+
+  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${id}">
+    <title lang="en">${escXML(e.title)}</title>
+    <desc lang="en">${escXML(e.description)}</desc>
+    <length units="seconds">${e.duration}</length>
+    <category lang="en">${escXML(e.category)}</category>
+  </programme>`).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv source-info-name="${name}" generator-info-name="hls-streamer">
+  <channel id="${id}">
+    <display-name lang="en">${name}</display-name>
+  </channel>
+${programmes}
+</tv>`;
+}
+
+/**
+ * Build a single-channel M3U playlist.
+ * Jellyfin → Live TV → Add Tuner → M3U Tuner → point here.
+ * The x-tvg-url attribute links the guide data automatically.
+ */
+function buildM3U(host, channelId, streamName) {
+  return [
+    `#EXTM3U x-tvg-url="http://${host}/xmltv"`,
+    `#EXTINF:-1 tvg-id="${channelId}" tvg-name="${streamName}" tvg-chno="1" group-title="HLS Streamer",${streamName}`,
+    `http://${host}/stream.m3u8`,
+    '',
+  ].join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Playlist state  (used by /health)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const playState = {
+  pass:        0,
+  videoIndex:  0,
+  videoTitle:  '(starting…)',
+  totalQueued: 0,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ffconcat FIFO writer
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildConcatEntry({ url, duration }) {
+  return (
+    `file '${url.replace(/'/g, '%27')}'\n` +
+    `outpoint ${duration}\n`               +
+    `duration ${duration}\n\n`
+  );
+}
+
+function writeFifo(videos, { loop, loopCount }) {
+  return new Promise((resolve, reject) => {
+    const forever = loop && loopCount <= 0;
+    const abort   = new AbortController();
+    let settled   = false;
+    const settle  = fn => { if (!settled) { settled = true; fn(); } };
+
+    info('Opening FIFO for writing (blocks until ffmpeg opens read end)…');
+    const writer = fs.createWriteStream(CFG.fifoPath);
+
+    writer.on('error', err => {
+      abort.abort();
+      if (err.code === 'EPIPE') {
+        // ffmpeg closed its read end — expected on finite playlist end / SIGTERM
+        info('FIFO: read end closed by ffmpeg (EPIPE) — writer done');
+        settle(resolve);
+      } else {
+        settle(() => reject(err));
+      }
+    });
+
+    writer.on('finish', () => { info('FIFO: all entries flushed'); settle(resolve); });
+    writer.on('open',   () => { info('FIFO connected — beginning playlist'); runLoop().catch(e => settle(() => reject(e))); });
+
+    // Write with backpressure: pause source if kernel FIFO buffer is full
+    const writeEntry = data => new Promise(res => {
+      const ok = writer.write(data);
+      if (ok) res(); else writer.once('drain', res);
+    });
+
+    // Abortable sleep — cancels instantly on EPIPE or SIGTERM
+    const sleep = ms => {
+      if (ms <= 0 || abort.signal.aborted) return Promise.resolve();
+      return new Promise(res => {
+        const t = setTimeout(res, ms);
+        abort.signal.addEventListener('abort', () => { clearTimeout(t); res(); }, { once: true });
+      });
+    };
+
+    async function runLoop() {
+      await writeEntry('ffconcat version 1.0\n\n');
+      let pass = 0;
+
+      outer: while (true) {
+        if (abort.signal.aborted)                  break;
+        if (!loop && pass >= 1)                    break;
+        if (loop && !forever && pass >= loopCount) break;
+
+        info(`── Pass ${pass + 1} / ${forever ? '∞' : loopCount} ${'─'.repeat(36)}`);
+
+        for (let i = 0; i < videos.length; i++) {
+          if (abort.signal.aborted) break outer;
+
+          const video = videos[i];
+
+          // ── Update state ──────────────────────────────────────────────────
+          playState.pass        = pass;
+          playState.videoIndex  = i;
+          playState.videoTitle  = video.title;
+          playState.totalQueued++;
+
+          addToSchedule(video, i, pass);  // ← wall-clock schedule entry
+
+          info(`  ↳  "${video.title}"  (${video.duration} s)`);
+          await writeEntry(buildConcatEntry(video));
+          if (abort.signal.aborted) break outer;
+
+          // Sleep until QUEUE_AHEAD_SECS before this clip's outpoint,
+          // then wake up to write the next entry so ffmpeg can pre-open
+          // the next source URL in time.
+          await sleep(Math.max(0, (video.duration - CFG.queueAhead) * 1000));
+        }
+        pass++;
+      }
+
+      if (!abort.signal.aborted) {
+        info('All passes queued — closing FIFO write-end');
+        writer.end();
+      }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ffmpeg  —  single long-running process
+// ─────────────────────────────────────────────────────────────────────────────
+
+let ffmpegProc = null;
+
+function startFFmpeg() {
+  return new Promise((resolve, reject) => {
+    const playlist = path.join(CFG.hlsDir, 'stream.m3u8');
+    const segPat   = path.join(CFG.hlsDir, 'seg_%06d.ts');
+
+    // Scale to fit target dimensions (letterbox / pillarbox with black bars),
+    // then force H.264-compatible pixel format.
+    const vf = [
+      `scale=${VW}:${VH}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+      `pad=${VW}:${VH}:(ow-iw)/2:(oh-ih)/2:black`,
+      'format=yuv420p',
+    ].join(',');
+
+    const args = [
+      '-y', '-hide_banner',
+      '-loglevel', CFG.debug ? 'info' : 'warning',
+
+      // Input: read ffconcat entries from named FIFO at native (1×) speed
+      '-re',
+      '-f',    'concat',
+      '-safe',  '0',
+      '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,fd,pipe',
+      '-i',    CFG.fifoPath,
+
+      // Video encoding
+      '-vf',           vf,
+      '-r',            String(CFG.framerate),
+      '-c:v',          'libx264',
+      '-preset',       'veryfast',
+      '-tune',         'zerolatency',
+      '-profile:v',    'main',
+      '-level:v',      '3.1',
+      '-b:v',          CFG.videoBitrate,
+      '-maxrate',      CFG.videoBitrate,
+      '-bufsize',      '4000k',
+      '-g',            String(GOP),        // keyframe every segment boundary
+      '-keyint_min',   String(GOP),
+      '-sc_threshold', '0',               // no scene-cut keyframes → clean CBR
+      '-threads',      String(CFG.threads),
+
+      // Audio encoding
+      '-c:a', 'aac',
+      '-b:a', CFG.audioBitrate,
+      '-ar',  '44100',
+      '-ac',  '2',
+
+      // HLS muxer
+      '-f',                    'hls',
+      '-hls_time',             String(CFG.segDuration),
+      '-hls_list_size',        String(CFG.listSize),
+      '-hls_flags',            'delete_segments+independent_segments',
+      '-hls_segment_type',     'mpegts',
+      '-hls_segment_filename', segPat,
+      playlist,
+    ];
+
+    info('Starting ffmpeg (ffconcat FIFO → HLS)…');
+    debug(`ffmpeg ${args.join(' ')}`);
+
+    ffmpegProc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    ffmpegProc.stderr.on('data', d => debug(`[ffmpeg] ${d.toString().trim()}`));
+    ffmpegProc.on('error', reject);
+    ffmpegProc.on('close', code => { info(`ffmpeg exited (code ${code})`); resolve(code); });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HTTP server
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MIME_TYPES = {
+  '.m3u8': 'application/vnd.apple.mpegurl',
+  '.ts':   'video/mp2t',
+};
+
+const CORS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Cache-Control':                'no-cache, no-store',
+};
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function buildPlayerHTML(name) {
+  const n = escHtml(name);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${n}</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      background: #0d0d0d; color: #f0f0f0; font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; gap: .75rem; padding: 1rem;
+    }
+    h1    { font-size: 1.1rem; font-weight: 500; opacity: .6 }
+    video {
+      width: 100%; max-width: 920px; border-radius: 6px;
+      background: #000; box-shadow: 0 6px 40px rgba(0,0,0,.6);
+    }
+    #now  {
+      font-size: .82rem; opacity: .55; min-height: 1.3em;
+      text-align: center; letter-spacing: .01em;
+    }
+    #prog-wrap {
+      width: 100%; max-width: 920px; height: 3px;
+      background: #333; border-radius: 2px; overflow: hidden;
+    }
+    #prog-bar { height: 100%; background: #e50; width: 0%; transition: width .5s linear }
+    small { font-size: .72rem; opacity: .28 }
+    code  { background: #222; padding: 2px 6px; border-radius: 3px }
+  </style>
+</head>
+<body>
+  <h1>🎬 ${n}</h1>
+  <video id="v" controls autoplay muted playsinline></video>
+  <div id="prog-wrap"><div id="prog-bar"></div></div>
+  <div id="now">Loading…</div>
+  <small>Stream: <code>/stream.m3u8</code> &nbsp;·&nbsp; Guide: <code>/xmltv</code> &nbsp;·&nbsp; Tuner: <code>/channels.m3u</code></small>
+  <script>
+    (function () {
+      // ── HLS player ──────────────────────────────────────────────────────────
+      var v = document.getElementById('v'), src = '/stream.m3u8';
+      if (Hls.isSupported()) {
+        var hls = new Hls({
+          liveSyncDurationCount:       3,
+          liveMaxLatencyDurationCount: 6,
+          enableWorker:                true,
+        });
+        hls.loadSource(src);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
+      } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = src;
+        v.play().catch(function () {});
+      } else {
+        document.body.innerHTML += '<p style="color:red">HLS not supported in this browser.</p>';
+      }
+
+      // ── Now-playing ticker (polls /now every 5 s) ───────────────────────────
+      var nowEl  = document.getElementById('now');
+      var barEl  = document.getElementById('prog-bar');
+
+      function fetchNow() {
+        fetch('/now')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.current) { nowEl.textContent = 'Stream starting…'; return; }
+            var pct  = Math.round(d.current.progress * 100);
+            var mins = Math.round(d.current.remaining / 60);
+            var text = '▶  ' + d.current.title + '  ·  ' + pct + '%  (' + mins + ' min remaining)';
+            if (d.next) text += '   ·   Up next: ' + d.next.title;
+            nowEl.textContent = text;
+            barEl.style.width = pct + '%';
+          })
+          .catch(function () { nowEl.textContent = ''; });
+      }
+
+      fetchNow();
+      setInterval(fetchNow, 5000);
+    }());
+  </script>
+</body>
+</html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Request router
+// ─────────────────────────────────────────────────────────────────────────────
+
+function startServer(cfg) {
+  const { name, channelId, videos, loop, loopCount } = cfg;
+
+  const server = http.createServer((req, res) => {
+    const questionMark = req.url.indexOf('?');
+    const url          = questionMark === -1 ? req.url : req.url.slice(0, questionMark);
+    const params       = new URLSearchParams(questionMark === -1 ? '' : req.url.slice(questionMark + 1));
+    const host         = req.headers.host ?? `localhost:${CFG.port}`;
+
+    // CORS preflight
+    if (req.method === 'OPTIONS') { res.writeHead(204, CORS); res.end(); return; }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /health
+    // ─────────────────────────────────────────────────────────────────────────
+    if (url === '/health') {
+      const forever = loop && loopCount <= 0;
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        uptime: Math.floor(process.uptime()),
+        loop: {
+          enabled:      loop,
+          count:        forever ? 'infinite' : loopCount,
+          currentPass:  playState.pass + 1,
+          currentVideo: playState.videoTitle,
+          totalQueued:  playState.totalQueued,
+        },
+        endpoints: {
+          player:   `http://${host}/`,
+          stream:   `http://${host}/stream.m3u8`,
+          now:      `http://${host}/now`,
+          xmltv:    `http://${host}/xmltv`,
+          channels: `http://${host}/channels.m3u`,
+        },
+      }));
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /now
+    //
+    // Returns JSON with the current video's name, playback position, and the
+    // next video.  Accurate to within QUEUE_AHEAD_SECS seconds.
+    //
+    // {
+    //   current: { title, duration, position, remaining, progress,
+    //              startedAt, endsAt },
+    //   next:    { title, duration, startsAt }  | null,
+    //   stream:  "http://…/stream.m3u8"
+    // }
+    // ─────────────────────────────────────────────────────────────────────────
+    if (url === '/now') {
+      const now     = Date.now();
+      const current = getCurrentEntry();
+
+      if (!current) {
+        res.writeHead(503, { ...CORS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'starting', message: 'Stream not yet started' }));
+        return;
+      }
+
+      const position  = Math.max(0, (now - current.startAt) / 1000);
+      const remaining = Math.max(0, (current.endAt - now)   / 1000);
+      const progress  = parseFloat(Math.min(1, position / current.duration).toFixed(4));
+
+      // Find next: prefer already-scheduled entry, otherwise extrapolate
+      const idx  = schedule.indexOf(current);
+      let   next = (idx >= 0 && idx < schedule.length - 1) ? schedule[idx + 1] : null;
+
+      if (!next) {
+        // Peek one entry beyond current.endAt
+        const peek = getScheduleWindow(
+          current.endAt,
+          current.endAt + 1,   // just past the boundary — gets exactly 1 entry
+          videos, loop, loopCount,
+        );
+        next = peek[0] ?? null;
+      }
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        current: {
+          title:     current.title,
+          duration:  current.duration,
+          position:  Math.round(position  * 10) / 10,  // 1 decimal place (seconds)
+          remaining: Math.round(remaining * 10) / 10,
+          progress,                                     // 0.0000 → 1.0000
+          startedAt: new Date(current.startAt).toISOString(),
+          endsAt:    new Date(current.endAt).toISOString(),
+        },
+        next: next ? {
+          title:    next.title,
+          duration: next.duration,
+          startsAt: new Date(next.startAt).toISOString(),
+        } : null,
+        stream: `http://${host}/stream.m3u8`,
+      }));
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /xmltv   (alias: /xmltv.xml)
+    //
+    // XMLTV guide data compatible with Jellyfin, Plex (xTeve/Threadfin),
+    // Emby, Kodi, and any other XMLTV-aware application.
+    //
+    // Query params:
+    //   ?hours=N   Hours of future guide data to include (1–24, default 4).
+    //              Always prepends 1 hour of history so the current programme
+    //              is always visible in the guide.
+    //
+    // Jellyfin setup:
+    //   Dashboard → Live TV → Add TV Guide Data Provider → XMLTV
+    //   URL: http://<host>:<port>/xmltv
+    // ─────────────────────────────────────────────────────────────────────────
+    if (url === '/xmltv' || url === '/xmltv.xml') {
+      const hours   = Math.min(24, Math.max(1, +(params.get('hours') ?? 4)));
+      const now     = Date.now();
+      const fromMs  = now - 3600 * 1000;          // 1 h of history
+      const toMs    = now + hours * 3600 * 1000;   // up to 24 h of future
+
+      const entries = getScheduleWindow(fromMs, toMs, videos, loop, loopCount);
+      const xml     = buildXMLTV(entries, channelId, name);
+
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/xml; charset=utf-8' });
+      res.end(xml);
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /channels.m3u   (alias: /playlist.m3u)
+    //
+    // Single-channel M3U playlist for Jellyfin's "M3U Tuner" and similar.
+    // The x-tvg-url attribute points to /xmltv so clients can auto-link
+    // the guide without extra configuration.
+    //
+    // Jellyfin setup:
+    //   Dashboard → Live TV → Add Tuner Device → M3U Tuner
+    //   URL: http://<host>:<port>/channels.m3u
+    // ─────────────────────────────────────────────────────────────────────────
+    if (url === '/channels.m3u' || url === '/playlist.m3u') {
+      res.writeHead(200, { ...CORS, 'Content-Type': 'application/x-mpegurl; charset=utf-8' });
+      res.end(buildM3U(host, channelId, name));
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /   (alias: /player)   —  embedded HLS.js web player
+    // ─────────────────────────────────────────────────────────────────────────
+    if (url === '/' || url === '/player') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(buildPlayerHTML(name));
+      return;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /stream.m3u8  and  GET /seg_*.ts  —  HLS files
+    // ─────────────────────────────────────────────────────────────────────────
+    const file = path.basename(url);
+    const ext  = path.extname(file);
+
+    if (!MIME_TYPES[ext]) { res.writeHead(403, CORS); res.end('Forbidden'); return; }
+
+    const rs = fs.createReadStream(path.join(CFG.hlsDir, file));
+    rs.on('open',  ()    => { res.writeHead(200, { ...CORS, 'Content-Type': MIME_TYPES[ext] }); rs.pipe(res); });
+    rs.on('error', err => {
+      if (res.headersSent) return;
+      res.writeHead(err.code === 'ENOENT' ? 404 : 500, CORS);
+      res.end(err.code === 'ENOENT' ? 'Not Found' : 'Internal Server Error');
+    });
+  });
+
+  server.on('error', e => error(`HTTP: ${e.message}`));
+  server.listen(CFG.port, '0.0.0.0', () => {
+    info('─'.repeat(60));
+    info('  HLS Streamer ready');
+    info('─'.repeat(60));
+    info(`  Player      : http://0.0.0.0:${CFG.port}/`);
+    info(`  Stream      : http://0.0.0.0:${CFG.port}/stream.m3u8`);
+    info(`  Now Playing : http://0.0.0.0:${CFG.port}/now`);
+    info(`  XMLTV Guide : http://0.0.0.0:${CFG.port}/xmltv`);
+    info(`  M3U Tuner   : http://0.0.0.0:${CFG.port}/channels.m3u`);
+    info(`  Health      : http://0.0.0.0:${CFG.port}/health`);
+    info('─'.repeat(60));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Graceful shutdown
+// ─────────────────────────────────────────────────────────────────────────────
+
+['SIGTERM', 'SIGINT'].forEach(sig =>
+  process.on(sig, () => {
+    info(`${sig} — shutting down`);
+    if (ffmpegProc) ffmpegProc.kill('SIGTERM');
+    process.exit(0);
+  })
+);
+
+process.on('uncaughtException', err => {
+  error(`Uncaught exception: ${err.message}`);
+  error(err.stack || '');
+  process.exit(1);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bootstrap
+// ─────────────────────────────────────────────────────────────────────────────
+
+(async () => {
+  setupDirs();
+  createFifo();
+
+  const config  = loadConfig();
+  const { name, channelId, videos, loop, loopCount } = config;
+  const forever = loop && loopCount <= 0;
+
+  info(`Stream    : "${name}"  (channel: ${channelId})`);
+  info(`Loop      : ${!loop ? 'play once' : forever ? 'infinite' : `${loopCount}×`}`);
+  info(`Videos    : ${videos.length}`);
+  videos.forEach((v, i) =>
+    info(`  ${String(i + 1).padStart(3)}. [${String(v.duration).padStart(6)} s]  ${v.title}`)
+  );
+  info(
+    `Encode    : ${CFG.resolution}  v=${CFG.videoBitrate}  a=${CFG.audioBitrate}  ` +
+    `${CFG.framerate} fps  threads=${CFG.threads || 'auto'}  ` +
+    `queue_ahead=${CFG.queueAhead} s`
+  );
+
+  startServer(config);
+
+  // Both promises start concurrently.
+  // They unblock each other via the FIFO:
+  //   ffmpeg opens the read end  →  Node.js write-end open() unblocks
+  //   Node.js writes first entry →  ffmpeg starts decoding
+  const [ffmpegCode] = await Promise.all([
+    startFFmpeg(),
+    writeFifo(videos, { loop, loopCount }),
+  ]);
+
+  info(`Stream complete — ffmpeg exit code: ${ffmpegCode}`);
+  process.exit(ffmpegCode === 0 ? 0 : 1);
+})();
