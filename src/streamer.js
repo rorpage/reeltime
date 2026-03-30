@@ -38,7 +38,7 @@ const CFG = {
   audioBitrate:  process.env.AUDIO_BITRATE   || '128k',
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
-  queueAhead:  +(process.env.QUEUE_AHEAD_SECS || 10),
+  foreverPasses: +(process.env.FOREVER_PASSES || 100),
   debug:         process.env.DEBUG === '1',
 };
 
@@ -131,11 +131,11 @@ function createFifo() {
 // ─────────────────────────────────────────────────────────────────────────────
 //
 //   schedNextStart is updated to entry.endAt each time a clip is added, so
-//   the logical clock advances by duration regardless of QUEUE_AHEAD_SECS.
+//   the logical clock advances by duration as entries are queued.
 //
 //   getScheduleWindow() merges already-written entries with extrapolated
 //   future entries so the XMLTV guide can cover several hours ahead even
-//   though the FIFO writer is only QUEUE_AHEAD_SECS in front of playback.
+//   when only a bounded number of future entries are prefilled.
 //
 // Entry shape:
 //   { title, url, duration, description, category,
@@ -319,14 +319,16 @@ const playState = {
 function buildConcatEntry({ url, duration }) {
   return (
     `file '${url.replace(/'/g, '%27')}'\n` +
-    `outpoint ${duration}\n`               +
-    `duration ${duration}\n\n`
+    `outpoint ${duration}\n\n`
   );
 }
 
 function writeFifo(videos, { loop, loopCount }) {
   return new Promise((resolve, reject) => {
     const forever = loop && loopCount <= 0;
+    const totalPasses = loop
+      ? (forever ? Math.max(1, CFG.foreverPasses) : Math.max(0, loopCount))
+      : 1;
     const abort   = new AbortController();
     let settled   = false;
     const settle  = fn => { if (!settled) { settled = true; fn(); } };
@@ -354,27 +356,14 @@ function writeFifo(videos, { loop, loopCount }) {
       if (ok) res(); else writer.once('drain', res);
     });
 
-    // Abortable sleep — cancels instantly on EPIPE or SIGTERM
-    const sleep = ms => {
-      if (ms <= 0 || abort.signal.aborted) return Promise.resolve();
-      return new Promise(res => {
-        const t = setTimeout(res, ms);
-        abort.signal.addEventListener('abort', () => { clearTimeout(t); res(); }, { once: true });
-      });
-    };
-
     async function runLoop() {
       await writeEntry('ffconcat version 1.0\n\n');
-      let pass = 0;
+      for (let pass = 0; pass < totalPasses; pass++) {
+        if (abort.signal.aborted) break;
+        const displayTotal = forever ? `∞ (prefill ${totalPasses})` : totalPasses;
+        info(`── Pass ${pass + 1} / ${displayTotal} ${'─'.repeat(36)}`);
 
-      outer: while (true) {
-        if (abort.signal.aborted)                  break;
-        if (!loop && pass >= 1)                    break;
-        if (loop && !forever && pass >= loopCount) break;
-
-        info(`── Pass ${pass + 1} / ${forever ? '∞' : loopCount} ${'─'.repeat(36)}`);
-
-        for (let i = 0; i < videos.length; i++) {
+        outer: for (let i = 0; i < videos.length; i++) {
           if (abort.signal.aborted) break outer;
 
           const video = videos[i];
@@ -390,13 +379,7 @@ function writeFifo(videos, { loop, loopCount }) {
           info(`  ↳  "${video.title}"  (${video.duration} s)`);
           await writeEntry(buildConcatEntry(video));
           if (abort.signal.aborted) break outer;
-
-          // Sleep until QUEUE_AHEAD_SECS before this clip's outpoint,
-          // then wake up to write the next entry so ffmpeg can pre-open
-          // the next source URL in time.
-          await sleep(Math.max(0, (video.duration - CFG.queueAhead) * 1000));
         }
-        pass++;
       }
 
       if (!abort.signal.aborted) {
@@ -473,7 +456,12 @@ function startFFmpeg() {
     debug(`ffmpeg ${args.join(' ')}`);
 
     ffmpegProc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
-    ffmpegProc.stderr.on('data', d => debug(`[ffmpeg] ${d.toString().trim()}`));
+    ffmpegProc.stderr.on('data', d => {
+      const msg = d.toString().trim();
+      if (!msg) return;
+      if (CFG.debug) debug(`[ffmpeg] ${msg}`);
+      else warn(`[ffmpeg] ${msg}`);
+    });
     ffmpegProc.on('error', reject);
     ffmpegProc.on('close', code => { info(`ffmpeg exited (code ${code})`); resolve(code); });
   });
@@ -633,7 +621,7 @@ function startServer(cfg) {
     // GET /now
     //
     // Returns JSON with the current video's name, playback position, and the
-    // next video.  Accurate to within QUEUE_AHEAD_SECS seconds.
+    // next video.
     //
     // {
     //   current: { title, duration, position, remaining, progress,
@@ -758,6 +746,14 @@ function startServer(cfg) {
     rs.on('open',  ()    => { res.writeHead(200, { ...CORS, 'Content-Type': MIME_TYPES[ext] }); rs.pipe(res); });
     rs.on('error', err => {
       if (res.headersSent) return;
+      if (err.code === 'ENOENT' && ext === '.m3u8') {
+        res.writeHead(503, { ...CORS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'starting',
+          message: 'HLS playlist not generated yet; try again shortly',
+        }));
+        return;
+      }
       res.writeHead(err.code === 'ENOENT' ? 404 : 500, CORS);
       res.end(err.code === 'ENOENT' ? 'Not Found' : 'Internal Server Error');
     });
@@ -809,28 +805,54 @@ process.on('uncaughtException', err => {
   const forever = loop && loopCount <= 0;
 
   info(`Stream    : "${name}"  (channel: ${channelId})`);
-  info(`Loop      : ${!loop ? 'play once' : forever ? 'infinite' : `${loopCount}×`}`);
+  info(`Loop      : ${!loop ? 'play once' : forever ? `infinite (prefill=${CFG.foreverPasses} passes)` : `${loopCount}×`}`);
   info(`Videos    : ${videos.length}`);
   videos.forEach((v, i) =>
     info(`  ${String(i + 1).padStart(3)}. [${String(v.duration).padStart(6)} s]  ${v.title}`)
   );
   info(
     `Encode    : ${CFG.resolution}  v=${CFG.videoBitrate}  a=${CFG.audioBitrate}  ` +
-    `${CFG.framerate} fps  threads=${CFG.threads || 'auto'}  ` +
-    `queue_ahead=${CFG.queueAhead} s`
+    `${CFG.framerate} fps  threads=${CFG.threads || 'auto'}`
   );
 
   startServer(config);
 
-  // Both promises start concurrently.
-  // They unblock each other via the FIFO:
-  //   ffmpeg opens the read end  →  Node.js write-end open() unblocks
-  //   Node.js writes first entry →  ffmpeg starts decoding
-  const [ffmpegCode] = await Promise.all([
-    startFFmpeg(),
-    writeFifo(videos, { loop, loopCount }),
-  ]);
+  const autoRollover = forever;
+  const ROLLOVER_DELAY_MS = 1000;
+  const RETRY_DELAY_MS = 5000;
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
+  let cycle = 0;
 
-  info(`Stream complete — ffmpeg exit code: ${ffmpegCode}`);
-  process.exit(ffmpegCode === 0 ? 0 : 1);
+  while (true) {
+    cycle++;
+    if (autoRollover) info(`Starting rollover cycle ${cycle}`);
+
+    // Both promises start concurrently.
+    // They unblock each other via the FIFO:
+    //   ffmpeg opens the read end  →  Node.js write-end open() unblocks
+    //   Node.js writes first entry →  ffmpeg starts decoding
+    const [ffmpegCode] = await Promise.all([
+      startFFmpeg(),
+      writeFifo(videos, { loop, loopCount }),
+    ]);
+
+    if (ffmpegCode !== 0 && autoRollover) {
+      warn(`Rollover cycle ${cycle} failed (ffmpeg exit ${ffmpegCode}) — retrying in ${RETRY_DELAY_MS} ms`);
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+
+    if (ffmpegCode !== 0) {
+      info(`Stream complete — ffmpeg exit code: ${ffmpegCode}`);
+      process.exit(1);
+    }
+
+    if (!autoRollover) {
+      info('Stream complete — ffmpeg exit code: 0');
+      process.exit(0);
+    }
+
+    info(`Rollover cycle ${cycle} complete — restarting in ${ROLLOVER_DELAY_MS} ms`);
+    await sleep(ROLLOVER_DELAY_MS);
+  }
 })();

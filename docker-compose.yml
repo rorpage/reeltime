@@ -23,9 +23,8 @@ services:
       AUDIO_BITRATE:    "${AUDIO_BITRATE:-128k}"
       FRAMERATE:        "${FRAMERATE:-30}"
       FFMPEG_THREADS:   "${FFMPEG_THREADS:-0}"
-      # How many seconds before a clip ends to pre-queue the next entry.
-      # Raise on slow origins; lower for more accurate /health reporting.
-      QUEUE_AHEAD_SECS: "${QUEUE_AHEAD_SECS:-10}"
+      # For loop_count: -1, number of passes prefilled per rollover cycle.
+      FOREVER_PASSES:   "${FOREVER_PASSES:-100}"
       FIFO_PATH:        "${FIFO_PATH:-/tmp/playlist.ffconcat}"
       # DEBUG: "1"
 

@@ -46,6 +46,7 @@ ENV CONFIG_PATH=/config/config.yaml \
     PORT=8080 \
     HLS_SEG=6 \
     HLS_SIZE=10 \
+    FOREVER_PASSES=100 \
     RESOLUTION=1280:720 \
     VIDEO_BITRATE=2000k \
     AUDIO_BITRATE=128k \

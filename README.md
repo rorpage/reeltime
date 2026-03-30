@@ -6,7 +6,7 @@ It reads a YAML playlist and streams videos in a continuous loop as a live m3u8 
 ## Features
 
 - Single ffmpeg process fed by a named FIFO using ffconcat.
-- Time-paced queue writer for stable continuous playback.
+- Infinite mode uses bounded prefill plus automatic rollover/retry.
 - Built-in web player with now-playing ticker and progress bar.
 - XMLTV output for Live TV integrations.
 - M3U tuner endpoint for Jellyfin, Plex (via xTeve/Threadfin), Emby, and Kodi.
@@ -93,13 +93,13 @@ See full example in config.example.yaml.
 - AUDIO_BITRATE (default 128k)
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
-- QUEUE_AHEAD_SECS (default 10)
+- FOREVER_PASSES (default 100, batch size per rollover cycle when loop_count is -1)
 - DEBUG (set to 1 for verbose logs)
 
 ## HTTP Endpoints
 
 - GET / : HLS.js web player with now-playing ticker
-- GET /stream.m3u8 : live HLS playlist
+- GET /stream.m3u8 : live HLS playlist (returns 503 JSON while starting/retrying)
 - GET /seg_*.ts : MPEG-TS segments
 - GET /now : JSON now-playing status and next item
 - GET /xmltv : XMLTV guide (supports ?hours=1-24, default 4)
@@ -132,6 +132,7 @@ docker run -p 8080:8080 -v ${PWD}/config.yaml:/config/config.yaml:ro reeltime
 
 - Runtime HLS output is written to /tmp/hls.
 - The schedule model is wall-clock aligned and used by both /now and /xmltv.
+- Infinite mode pre-fills ffconcat input in batches and auto-restarts cycles.
 - Logging is timestamped in ISO-8601 UTC format.
 
 ## License
