@@ -1,11 +1,11 @@
 version: "3.9"
 
 services:
-  hls-streamer:
+  reeltime:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: hls-streamer
+    container_name: reeltime
     restart: unless-stopped
 
     ports:

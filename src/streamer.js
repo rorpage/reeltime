@@ -93,7 +93,7 @@ function loadConfig() {
   return {
     name:       String(raw.stream?.name       || 'HLS Stream'),
     // channelId must be stable and URL-safe — used as the XMLTV channel id
-    channelId:  String(raw.stream?.channel_id || 'hls-streamer'),
+    channelId:  String(raw.stream?.channel_id || 'reeltime'),
     loop:              raw.stream?.loop !== false,
     loopCount:  Number(raw.stream?.loop_count ?? -1),
     videos,
@@ -279,7 +279,7 @@ function buildXMLTV(entries, channelId, streamName) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
-<tv source-info-name="${name}" generator-info-name="hls-streamer">
+<tv source-info-name="${name}" generator-info-name="reeltime">
   <channel id="${id}">
     <display-name lang="en">${name}</display-name>
   </channel>
@@ -295,7 +295,7 @@ ${programmes}
 function buildM3U(host, channelId, streamName) {
   return [
     `#EXTM3U x-tvg-url="http://${host}/xmltv"`,
-    `#EXTINF:-1 tvg-id="${channelId}" tvg-name="${streamName}" tvg-chno="1" group-title="HLS Streamer",${streamName}`,
+    `#EXTINF:-1 tvg-id="${channelId}" tvg-name="${streamName}" tvg-chno="1" group-title="Reeltime",${streamName}`,
     `http://${host}/stream.m3u8`,
     '',
   ].join('\n');
@@ -766,7 +766,7 @@ function startServer(cfg) {
   server.on('error', e => error(`HTTP: ${e.message}`));
   server.listen(CFG.port, '0.0.0.0', () => {
     info('─'.repeat(60));
-    info('  HLS Streamer ready');
+    info('  Reeltime ready');
     info('─'.repeat(60));
     info(`  Player      : http://0.0.0.0:${CFG.port}/`);
     info(`  Stream      : http://0.0.0.0:${CFG.port}/stream.m3u8`);
