@@ -87,6 +87,7 @@ function loadConfig() {
       // Optional XMLTV metadata
       description: String(v.description || v.title || path.basename(String(v.url))),
       category:    String(v.category    || 'Movie'),
+      icon:        String(v.icon        || ''),
     };
   });
 
@@ -96,6 +97,7 @@ function loadConfig() {
     name,
     // channel_id is optional; default derives from stream name for XMLTV + M3U consistency.
     channelId:  String(raw.stream?.channel_id || toSnakeCase(name)),
+    icon:       String(raw.stream?.icon || ''),
     loop:              raw.stream?.loop !== false,
     loopCount:  Number(raw.stream?.loop_count ?? -1),
     videos,
@@ -252,16 +254,6 @@ function toXMLTVDate(ms) {
   );
 }
 
-/** Convert string to snake_case (URL-safe channel identifier). */
-function toSnakeCase(str) {
-  return String(str)
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')       // Remove non-word chars (except spaces)
-    .replace(/\s+/g, '_')          // Replace whitespace with underscores
-    .replace(/_+/g, '_')           // Collapse multiple underscores
-    .replace(/^_+|_+$/g, '');      // Trim leading/trailing underscores
-}
-
 /** Convert a label into a stable snake_case identifier. */
 function toSnakeCase(str) {
   return String(str || '')
@@ -286,22 +278,24 @@ function escXML(s) {
  *
  * Compatible with:  Jellyfin · Plex (via xTeve/Threadfin) · Emby · Kodi
  */
-function buildXMLTV(entries, channelId, streamName) {
+function buildXMLTV(entries, channelId, streamName, channelIcon = '') {
   const escapedName = escXML(streamName);
   const escapedChannelId = escXML(channelId);
+  const channelIconTag = channelIcon ? `\n    <icon src="${escXML(channelIcon)}"/>` : '';
 
   const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${escapedChannelId}">
     <title lang="en">${escXML(e.title)}</title>
     <desc lang="en">${escXML(e.description)}</desc>
     <length units="seconds">${e.duration}</length>
     <category lang="en">${escXML(e.category)}</category>
+    ${e.icon ? `<icon src="${escXML(e.icon)}"/>` : ''}
   </programme>`).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
 <tv source-info-name="${escapedName}" generator-info-name="reeltime">
   <channel id="${escapedChannelId}">
-    <display-name lang="en">${escapedName}</display-name>
+    <display-name lang="en">${escapedName}</display-name>${channelIconTag}
   </channel>
 ${programmes}
 </tv>`;
@@ -599,7 +593,7 @@ function buildPlayerHTML(name) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function startServer(cfg) {
-  const { name, channelId, videos, loop, loopCount } = cfg;
+  const { name, channelId, icon, videos, loop, loopCount } = cfg;
 
   const server = http.createServer((req, res) => {
     const questionMark = req.url.indexOf('?');
@@ -720,7 +714,7 @@ function startServer(cfg) {
       const toMs    = now + hours * 3600 * 1000;   // up to 24 h of future
 
       const entries = getScheduleWindow(fromMs, toMs, videos, loop, loopCount);
-      const xml     = buildXMLTV(entries, channelId, name);
+      const xml     = buildXMLTV(entries, channelId, name, icon);
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/xml; charset=utf-8' });
       res.end(xml);
@@ -820,10 +814,11 @@ process.on('uncaughtException', err => {
   createFifo();
 
   const config  = loadConfig();
-  const { name, channelId, videos, loop, loopCount } = config;
+  const { name, channelId, icon, videos, loop, loopCount } = config;
   const forever = loop && loopCount <= 0;
 
   info(`Stream    : "${name}"  (channel: ${channelId})`);
+  if (icon) info(`Icon      : ${icon}`);
   info(`Loop      : ${!loop ? 'play once' : forever ? `infinite (prefill=${CFG.foreverPasses} passes)` : `${loopCount}×`}`);
   info(`Videos    : ${videos.length}`);
   videos.forEach((v, i) =>

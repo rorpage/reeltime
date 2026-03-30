@@ -67,6 +67,7 @@ Structure:
 
 stream:
 - name: display name
+- icon: optional XMLTV channel icon URL
 - channel_id: optional stable URL-safe override for XMLTV/M3U id (defaults to stream name in snake_case)
 - loop: true or false
 - loop_count: -1 for infinite, or N for finite loops
@@ -74,13 +75,14 @@ stream:
 videos:
 - title: display title
 - url: source URL (http/https/rtmp/file)
+- icon: optional XMLTV programme icon URL
 - duration: seconds to queue for each clip
 - description: optional XMLTV description
 - category: optional XMLTV category
 
 See full example in config.example.yaml.
 
-If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output.
+If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output. If icons are set, they are emitted in XMLTV as `<channel><icon src="..."/></channel>` and `<programme><icon src="..."/></programme>`.
 
 ## Environment Variables
 
