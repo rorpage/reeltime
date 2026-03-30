@@ -250,6 +250,16 @@ function toXMLTVDate(ms) {
   );
 }
 
+/** Convert string to snake_case (URL-safe channel identifier). */
+function toSnakeCase(str) {
+  return String(str)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')       // Remove non-word chars (except spaces)
+    .replace(/\s+/g, '_')          // Replace whitespace with underscores
+    .replace(/_+/g, '_')           // Collapse multiple underscores
+    .replace(/^_+|_+$/g, '');      // Trim leading/trailing underscores
+}
+
 /** XML-safe string escaping. */
 function escXML(s) {
   return String(s)
@@ -262,15 +272,15 @@ function escXML(s) {
 
 /**
  * Build a complete XMLTV document.
- * One <channel> and one <programme> per entry in the window.
+ * Channel ID derived from stream name in snake_case (stable, URL-safe identifier).
  *
  * Compatible with:  Jellyfin · Plex (via xTeve/Threadfin) · Emby · Kodi
  */
-function buildXMLTV(entries, channelId, streamName) {
-  const id   = escXML(channelId);
-  const name = escXML(streamName);
+function buildXMLTV(entries, streamName) {
+  const channelId = toSnakeCase(streamName);
+  const escapedName = escXML(streamName);
 
-  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${id}">
+  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${channelId}">
     <title lang="en">${escXML(e.title)}</title>
     <desc lang="en">${escXML(e.description)}</desc>
     <length units="seconds">${e.duration}</length>
@@ -279,9 +289,9 @@ function buildXMLTV(entries, channelId, streamName) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
-<tv source-info-name="${name}" generator-info-name="reeltime">
-  <channel id="${id}">
-    <display-name lang="en">${name}</display-name>
+<tv source-info-name="${escapedName}" generator-info-name="reeltime">
+  <channel id="${channelId}">
+    <display-name lang="en">${escapedName}</display-name>
   </channel>
 ${programmes}
 </tv>`;
@@ -701,7 +711,7 @@ function startServer(cfg) {
       const toMs    = now + hours * 3600 * 1000;   // up to 24 h of future
 
       const entries = getScheduleWindow(fromMs, toMs, videos, loop, loopCount);
-      const xml     = buildXMLTV(entries, channelId, name);
+      const xml     = buildXMLTV(entries, name);
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/xml; charset=utf-8' });
       res.end(xml);
