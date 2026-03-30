@@ -67,7 +67,7 @@ Structure:
 
 stream:
 - name: display name
-- channel_id: stable URL-safe channel id used by XMLTV/M3U
+- channel_id: optional stable URL-safe override for XMLTV/M3U id (defaults to stream name in snake_case)
 - loop: true or false
 - loop_count: -1 for infinite, or N for finite loops
 
@@ -79,6 +79,8 @@ videos:
 - category: optional XMLTV category
 
 See full example in config.example.yaml.
+
+If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output.
 
 ## Environment Variables
 

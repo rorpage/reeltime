@@ -14,6 +14,9 @@ npm-debug.log*
 # Runtime
 /tmp/hls/
 
+# Local helper scripts (non-source-controlled)
+/scripts/
+
 # OS
 .DS_Store
 Thumbs.db

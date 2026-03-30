@@ -33,7 +33,7 @@ GET /health         JSON health check
 ## Config shape (config.yaml)
 stream:
   name:       string   # display name
-  channel_id: string   # stable XMLTV id, URL-safe
+  channel_id: string   # optional stable XMLTV/M3U id override; defaults to stream.name in snake_case
   loop:       boolean  # default true
   loop_count: number   # -1 = infinite
 

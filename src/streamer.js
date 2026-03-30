@@ -90,10 +90,12 @@ function loadConfig() {
     };
   });
 
+  const name = String(raw.stream?.name || 'HLS Stream');
+
   return {
-    name:       String(raw.stream?.name       || 'HLS Stream'),
-    // channelId must be stable and URL-safe — used as the XMLTV channel id
-    channelId:  String(raw.stream?.channel_id || 'reeltime'),
+    name,
+    // channel_id is optional; default derives from stream name for XMLTV + M3U consistency.
+    channelId:  String(raw.stream?.channel_id || toSnakeCase(name)),
     loop:              raw.stream?.loop !== false,
     loopCount:  Number(raw.stream?.loop_count ?? -1),
     videos,
@@ -260,6 +262,14 @@ function toSnakeCase(str) {
     .replace(/^_+|_+$/g, '');      // Trim leading/trailing underscores
 }
 
+/** Convert a label into a stable snake_case identifier. */
+function toSnakeCase(str) {
+  return String(str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'reeltime';
+}
+
 /** XML-safe string escaping. */
 function escXML(s) {
   return String(s)
@@ -272,15 +282,15 @@ function escXML(s) {
 
 /**
  * Build a complete XMLTV document.
- * Channel ID derived from stream name in snake_case (stable, URL-safe identifier).
+ * Channel ID is provided by config loading and defaults to stream name in snake_case.
  *
  * Compatible with:  Jellyfin · Plex (via xTeve/Threadfin) · Emby · Kodi
  */
-function buildXMLTV(entries, streamName) {
-  const channelId = toSnakeCase(streamName);
+function buildXMLTV(entries, channelId, streamName) {
   const escapedName = escXML(streamName);
+  const escapedChannelId = escXML(channelId);
 
-  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${channelId}">
+  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${escapedChannelId}">
     <title lang="en">${escXML(e.title)}</title>
     <desc lang="en">${escXML(e.description)}</desc>
     <length units="seconds">${e.duration}</length>
@@ -290,7 +300,7 @@ function buildXMLTV(entries, streamName) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
 <tv source-info-name="${escapedName}" generator-info-name="reeltime">
-  <channel id="${channelId}">
+  <channel id="${escapedChannelId}">
     <display-name lang="en">${escapedName}</display-name>
   </channel>
 ${programmes}
@@ -627,7 +637,6 @@ function startServer(cfg) {
       return;
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // GET /now
     //
     // Returns JSON with the current video's name, playback position, and the
@@ -711,7 +720,7 @@ function startServer(cfg) {
       const toMs    = now + hours * 3600 * 1000;   // up to 24 h of future
 
       const entries = getScheduleWindow(fromMs, toMs, videos, loop, loopCount);
-      const xml     = buildXMLTV(entries, name);
+      const xml     = buildXMLTV(entries, channelId, name);
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/xml; charset=utf-8' });
       res.end(xml);

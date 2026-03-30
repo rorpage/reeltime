@@ -4,7 +4,7 @@
 
 stream:
   name:       "My Continuous Stream"   # display name everywhere
-  channel_id: "reeltime"              # stable XMLTV channel id  (URL-safe)
+  # channel_id: "my_continuous_stream" # optional override; defaults to stream.name in snake_case
 
   loop:       true    # false = play once then exit
   loop_count: -1      # -1 = infinite  |  N = play exactly N times
