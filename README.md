@@ -93,7 +93,7 @@ See full example in config.example.yaml.
 - AUDIO_BITRATE (default 128k)
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
-- FOREVER_PASSES (default 100, batch size per rollover cycle when loop_count is -1)
+- PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
 - DEBUG (set to 1 for verbose logs)
 
 ## HTTP Endpoints

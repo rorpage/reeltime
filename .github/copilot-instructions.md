@@ -7,7 +7,7 @@ in a continuous loop as an HLS (m3u8) stream.
 
 ## Key architecture decisions
 - Single ffmpeg process fed by a named FIFO (ffconcat format)
-- Infinite mode uses FOREVER_PASSES prefill batches with automatic rollover/retry
+- Infinite mode uses PASSES_PER_CYCLE prefill batches with automatic rollover/retry
 - A wall-clock schedule[] array is the source of truth for /now and /xmltv
 - getScheduleWindow() extrapolates future entries beyond the FIFO write head
 - NO multi-process normaliser + encoder split — one ffmpeg does everything
@@ -56,5 +56,5 @@ VIDEO_BITRATE    2000k
 AUDIO_BITRATE    128k
 FRAMERATE        30
 FFMPEG_THREADS   0        (0 = auto)
-FOREVER_PASSES  100
+PASSES_PER_CYCLE  3
 DEBUG            0

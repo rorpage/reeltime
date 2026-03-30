@@ -38,7 +38,7 @@ const CFG = {
   audioBitrate:  process.env.AUDIO_BITRATE   || '128k',
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
-  foreverPasses: +(process.env.FOREVER_PASSES || 100),
+  foreverPasses: +(process.env.PASSES_PER_CYCLE || 3),
   debug:         process.env.DEBUG === '1',
 };
 
