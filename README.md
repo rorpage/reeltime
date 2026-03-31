@@ -74,6 +74,10 @@ stream:
 
 videos:
 - title: display title
+- series_title: optional XMLTV series/program title override
+- sub_title: optional XMLTV episode subtitle
+- episode_num: optional XMLTV onscreen episode number (for example S01E07 or S01E01-E02)
+- date: optional XMLTV air/release date (YYYYMMDD or YYYY)
 - url: source URL (http/https/rtmp/file)
 - icon: optional XMLTV programme icon URL
 - duration: seconds to queue for each clip
@@ -82,7 +86,14 @@ videos:
 
 See full example in config.example.yaml.
 
-If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output. If icons are set, they are emitted in XMLTV as `<channel><icon src="..."/></channel>` and `<programme><icon src="..."/></programme>`.
+If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output. If `icon` is set on the stream, Reeltime emits it both as XMLTV channel artwork and as the M3U `tvg-logo` value. If `icon` is set on a video, it is emitted as XMLTV programme artwork.
+
+For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reeltime can emit richer XMLTV metadata:
+
+- `<title>` comes from `series_title` when present, otherwise `title`
+- `<sub-title>` comes from `sub_title`
+- `<episode-num system="onscreen">` comes from `episode_num`
+- `<date>` comes from `date` when supplied
 
 ## Environment Variables
 
@@ -120,6 +131,7 @@ Use these URLs:
 - XMLTV guide: http://<host>:8080/xmltv
 
 The generated M3U includes x-tvg-url pointing to /xmltv to simplify setup.
+If a stream icon is configured, the generated M3U also includes `tvg-logo`.
 
 ## Docker
 

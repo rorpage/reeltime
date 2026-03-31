@@ -17,6 +17,10 @@ videos:
   #   duration — seconds of this clip to stream (can be < actual video length)
   #
   # Optional XMLTV metadata
+  #   series_title — XMLTV <title> for episodic content (for example, show name)
+  #   sub_title    — XMLTV <sub-title> (for example, episode name)
+  #   episode_num  — XMLTV onscreen episode number (for example, S01E07)
+  #   date         — XMLTV date (YYYYMMDD or YYYY)
   #   description — shown in Jellyfin/Plex guide detail view (defaults to title)
   #   category    — genre tag in XMLTV  (defaults to "Movie")
   #   icon        — optional XMLTV programme icon URL
@@ -26,6 +30,7 @@ videos:
   - title:       "Big Buck Bunny"
     url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
     icon:        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg"
+    date:        "20080410"
     duration:    60
     description: "A large and lovable rabbit deals with bullying."
     category:    "Movie"
@@ -33,6 +38,7 @@ videos:
   - title:       "Elephant Dream"
     url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
     icon:        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/ElephantsDream.jpg"
+    date:        "20060324"
     duration:    60
     description: "The world's first open-source animated film."
     category:    "Movie"
@@ -54,6 +60,19 @@ videos:
   - title:       "Tears of Steel"
     url:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
     icon:        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg"
+    date:        "20120926"
     duration:    60
     description: "A Blender Foundation short film."
     category:    "Movie"
+
+  # Episodic example
+  - title:        "Tears of Steel"
+    series_title: "Blender Open Shorts"
+    sub_title:    "Tears of Steel"
+    episode_num:  "S01E01"
+    date:         "20120926"
+    url:          "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+    icon:         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/TearsOfSteel.jpg"
+    duration:     734
+    description:  "Example episodic metadata using a freely available short film."
+    category:     "Series"

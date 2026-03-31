@@ -40,6 +40,10 @@ stream:
 
 videos:
   - title:       string
+    series_title: string   # optional XMLTV series/program title
+    sub_title:    string   # optional XMLTV episode subtitle
+    episode_num:  string   # optional XMLTV onscreen episode number (e.g. S01E07)
+    date:         string   # optional XMLTV date (YYYYMMDD or YYYY)
     url:         string   # http/https/rtmp/file
     icon:        string   # optional XMLTV programme icon URL
     duration:    number   # seconds

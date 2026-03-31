@@ -85,6 +85,10 @@ function loadConfig() {
       url:         String(v.url),
       duration:    Number(v.duration)   > 0 ? Number(v.duration)   : 3600,
       // Optional XMLTV metadata
+      seriesTitle: String(v.series_title || ''),
+      subTitle:    String(v.sub_title    || ''),
+      episodeNum:  String(v.episode_num  || ''),
+      date:        String(v.date         || ''),
       description: String(v.description || v.title || path.basename(String(v.url))),
       category:    String(v.category    || 'Movie'),
       icon:        String(v.icon        || ''),
@@ -272,6 +276,13 @@ function escXML(s) {
     .replace(/'/g,  '&apos;');
 }
 
+function normalizeXMLTVValueDate(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length >= 8) return digits.slice(0, 8);
+  if (digits.length === 4) return digits;
+  return '';
+}
+
 /**
  * Build a complete XMLTV document.
  * Channel ID is provided by config loading and defaults to stream name in snake_case.
@@ -283,13 +294,20 @@ function buildXMLTV(entries, channelId, streamName, channelIcon = '') {
   const escapedChannelId = escXML(channelId);
   const channelIconTag = channelIcon ? `\n    <icon src="${escXML(channelIcon)}"/>` : '';
 
-  const programmes = entries.map(e => `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${escapedChannelId}">
-    <title lang="en">${escXML(e.title)}</title>
+  const programmes = entries.map(e => {
+    const title = escXML(e.seriesTitle || e.title);
+    const subTitleTag = e.subTitle ? `\n    <sub-title lang="en">${escXML(e.subTitle)}</sub-title>` : '';
+    const episodeNumTag = e.episodeNum ? `\n    <episode-num system="onscreen">${escXML(e.episodeNum)}</episode-num>` : '';
+    const dateTag = normalizeXMLTVValueDate(e.date) ? `\n    <date>${normalizeXMLTVValueDate(e.date)}</date>` : '';
+    const iconTag = e.icon ? `\n    <icon src="${escXML(e.icon)}"/>` : '';
+
+    return `  <programme start="${toXMLTVDate(e.startAt)}" stop="${toXMLTVDate(e.endAt)}" channel="${escapedChannelId}">
+    <title lang="en">${title}</title>${subTitleTag}${episodeNumTag}${dateTag}
     <desc lang="en">${escXML(e.description)}</desc>
     <length units="seconds">${e.duration}</length>
-    <category lang="en">${escXML(e.category)}</category>
-    ${e.icon ? `<icon src="${escXML(e.icon)}"/>` : ''}
-  </programme>`).join('\n');
+    <category lang="en">${escXML(e.category)}</category>${iconTag}
+  </programme>`;
+  }).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
@@ -306,10 +324,11 @@ ${programmes}
  * Jellyfin → Live TV → Add Tuner → M3U Tuner → point here.
  * The x-tvg-url attribute links the guide data automatically.
  */
-function buildM3U(host, channelId, streamName) {
+function buildM3U(host, channelId, streamName, channelIcon = '') {
+  const logoAttr = channelIcon ? ` tvg-logo="${channelIcon.replace(/"/g, '&quot;')}"` : '';
   return [
     `#EXTM3U x-tvg-url="http://${host}/xmltv"`,
-    `#EXTINF:-1 tvg-id="${channelId}" tvg-name="${streamName}" tvg-chno="1" group-title="Reeltime",${streamName}`,
+    `#EXTINF:-1 tvg-id="${channelId}" tvg-name="${streamName}"${logoAttr} tvg-chno="1" group-title="Reeltime",${streamName}`,
     `http://${host}/stream.m3u8`,
     '',
   ].join('\n');
@@ -734,7 +753,7 @@ function startServer(cfg) {
     // ─────────────────────────────────────────────────────────────────────────
     if (url === '/channels.m3u' || url === '/playlist.m3u') {
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/x-mpegurl; charset=utf-8' });
-      res.end(buildM3U(host, channelId, name));
+      res.end(buildM3U(host, channelId, name, icon));
       return;
     }
 
