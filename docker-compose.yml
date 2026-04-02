@@ -12,6 +12,16 @@ services:
       - "${HOST_PORT:-8080}:8080"
 
     volumes:
+      # config.yaml is bind-mounted read-only.
+      # Reeltime writes a state file (state.<hostname>.json) alongside it so the
+      # stream can resume after a container restart.  The file-level :ro flag does
+      # not restrict writes to the /config directory itself, so no extra mount is
+      # needed for normal container restarts (docker restart / crash recovery).
+      #
+      # If you want the state to survive a full "docker compose down && up" cycle
+      # (container recreation), mount the whole config directory instead:
+      #   - ./config:/config          (put config.yaml inside ./config/)
+      # or add a named volume for /config alongside the file bind mount.
       - ./config.yaml:/config/config.yaml:ro
 
     environment:

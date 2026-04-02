@@ -109,6 +109,8 @@ For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reel
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
 - PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
+- STATE_PATH (default `<config dir>/state.<HOSTNAME>.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
+- STATE_MAX_AGE_SEC (default 86400, maximum age in seconds of a state file before it is ignored on startup; streams down longer than this restart from the beginning)
 - DEBUG (set to 1 for verbose logs)
 
 ## HTTP Endpoints
@@ -132,6 +134,23 @@ Use these URLs:
 
 The generated M3U includes x-tvg-url pointing to /xmltv to simplify setup.
 If a stream icon is configured, the generated M3U also includes `tvg-logo`.
+
+## Restart-Resume
+
+Reeltime writes a JSON state file every 5 seconds recording the current video index, loop pass, and playback position. If the container restarts, it reads this file and resumes from approximately the same point.
+
+State file location: `<config dir>/state.<HOSTNAME>.json` (e.g. `/config/state.reeltime.json`). When multiple containers share the same config directory but have different `container_name` values, each writes its own state file keyed by hostname.
+
+The state file is ignored and playback starts from the beginning if:
+
+- The file is missing or unparseable.
+- `videoIndex` is out of bounds (playlist has changed).
+- The file is older than `STATE_MAX_AGE_SEC` seconds (default 24 hours).
+
+The state file is written alongside the config file inside the container. With the default `docker compose` setup (a single file bind mount `./config.yaml:/config/config.yaml:ro`), the file persists across `docker restart` and crash-recovery restarts but is lost when the container is fully recreated (`docker compose down && up`). To preserve state across full recreation, mount the entire config directory:
+
+	# put config.yaml inside ./config/
+	- ./config:/config
 
 ## Docker
 
