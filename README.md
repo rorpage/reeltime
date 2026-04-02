@@ -109,7 +109,7 @@ For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reel
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
 - PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
-- STATE_PATH (default `<config dir>/state.<HOSTNAME>.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
+- STATE_PATH (default `<config dir>/state.<config-basename>.<HOSTNAME>.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
 - STATE_MAX_AGE_SEC (default 86400, maximum age in seconds of a state file before it is ignored on startup; streams down longer than this restart from the beginning)
 - DEBUG (set to 1 for verbose logs)
 
@@ -139,7 +139,11 @@ If a stream icon is configured, the generated M3U also includes `tvg-logo`.
 
 Reeltime writes a JSON state file every 5 seconds recording the current video index, loop pass, and playback position. If the container restarts, it reads this file and resumes from approximately the same point.
 
-State file location: `<config dir>/state.<HOSTNAME>.json` (e.g. `/config/state.reeltime.json`). When multiple containers share the same config directory but have different `container_name` values, each writes its own state file keyed by hostname.
+State file location: `<config dir>/state.<config-basename>.<HOSTNAME>.json` (e.g. `/config/state.config.reeltime.json`). The name incorporates both the config file's basename and the container hostname, so:
+
+- Multiple containers sharing the same config directory with **different `container_name` values** each write their own state file (hostname differs).
+- Multiple containers in the same directory with **different config files** (e.g. `channel1.yaml`, `channel2.yaml`) each write their own state file (basename differs).
+- A container reused with a **different config file** over time produces a fresh state file automatically.
 
 The state file is ignored and playback starts from the beginning if:
 

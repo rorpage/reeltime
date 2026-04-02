@@ -39,11 +39,14 @@ const CFG = {
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
   foreverPasses: +(process.env.PASSES_PER_CYCLE || 3),
-  statePath:       process.env.STATE_PATH ||
-                   path.join(
-                     path.dirname(process.env.CONFIG_PATH || '/config/config.yaml'),
-                     `state.${process.env.HOSTNAME || 'default'}.json`,
-                   ),
+  statePath:       process.env.STATE_PATH || (() => {
+                     const cfgPath = process.env.CONFIG_PATH || '/config/config.yaml';
+                     const cfgBase = path.basename(cfgPath, path.extname(cfgPath));
+                     return path.join(
+                       path.dirname(cfgPath),
+                       `state.${cfgBase}.${process.env.HOSTNAME || 'default'}.json`,
+                     );
+                   })(),
   stateMaxAgeSec: +(process.env.STATE_MAX_AGE_SEC || 86400),
   debug:           process.env.DEBUG === '1',
 };
