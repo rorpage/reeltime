@@ -20,7 +20,6 @@ const {
   loadConfig,
   generateCompose,
   buildAggregatedM3U,
-  buildGuideHTML,
   buildPlayerHTML,
   buildAggregatedNow,
   buildHealthResponse,
@@ -403,47 +402,36 @@ test('buildAggregatedM3U — contains channel names in EXTINF lines', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. buildGuideHTML
+// 9. static index.html
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('buildGuideHTML — contains channel names', () => {
-  const cache = new Map();
-  cache.set('channel_1', { online: true, now: { title: 'Movie A', progress: 0.5, remaining: 1800, next: 'Movie B' } });
-  cache.set('channel_2', { online: false });
-
-  const html = buildGuideHTML('My Director', sampleChannels, cache);
-  assert.ok(html.includes('Channel 1'));
-  assert.ok(html.includes('Channel 2'));
+test('index.html — static file exists', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  assert.ok(fs.existsSync(indexPath), 'public/index.html must exist');
 });
 
-test('buildGuideHTML — contains WATCH links', () => {
-  const cache = new Map();
-  cache.set('channel_1', { online: true, now: { title: 'Movie A', progress: 0.4, remaining: 900, next: 'Movie B' } });
-  cache.set('channel_2', { online: true, now: { title: 'Show X', progress: 0.2, remaining: 600, next: 'Show Y' } });
-
-  const html = buildGuideHTML('My Director', sampleChannels, cache);
-  assert.ok(html.includes('/watch/channel_1'));
-  assert.ok(html.includes('/watch/channel_2'));
-  assert.ok(html.includes('WATCH'));
+test('index.html — contains guide-grid element', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('id="guide-grid"'));
 });
 
-test('buildGuideHTML — contains neon colors', () => {
-  const cache = new Map();
-  const html = buildGuideHTML('My Director', sampleChannels, cache);
-  assert.ok(html.includes('#00d4ff') || html.includes('#39ff14') || html.includes('#ff2d78'));
+test('index.html — contains neon colors in JS', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('#00d4ff'));
 });
 
-test('buildGuideHTML — shows OFFLINE for offline channels', () => {
-  const cache = new Map();
-  cache.set('channel_1', { online: false });
-  const html = buildGuideHTML('My Director', sampleChannels, cache);
-  assert.ok(html.includes('OFFLINE'));
+test('index.html — fetches /now in JS', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes("fetch('/now')"));
 });
 
-test('buildGuideHTML — contains director name in title', () => {
-  const cache = new Map();
-  const html = buildGuideHTML('Awesome Director', sampleChannels, cache);
-  assert.ok(html.includes('Awesome Director'));
+test('index.html — contains /watch/ link pattern in JS', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('/watch/'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -489,9 +477,15 @@ test('buildAggregatedNow — returns correct shape', () => {
   cache.set('channel_1', { online: true,  now: { title: 'Movie A', progress: 0.5 } });
   cache.set('channel_2', { online: false, now: null });
 
-  const result = buildAggregatedNow(sampleChannels, cache);
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
   assert.ok(Array.isArray(result.channels));
   assert.equal(result.channels.length, 2);
+});
+
+test('buildAggregatedNow — includes director name', () => {
+  const cache  = new Map();
+  const result = buildAggregatedNow('Test Director', sampleChannels, cache);
+  assert.equal(result.name, 'Test Director');
 });
 
 test('buildAggregatedNow — online channel has correct data', () => {
@@ -499,7 +493,7 @@ test('buildAggregatedNow — online channel has correct data', () => {
   cache.set('channel_1', { online: true, now: { title: 'Movie A', progress: 0.5 } });
   cache.set('channel_2', { online: false });
 
-  const result = buildAggregatedNow(sampleChannels, cache);
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
   const ch1 = result.channels.find(c => c.id === 'channel_1');
   assert.ok(ch1);
   assert.equal(ch1.online, true);
@@ -512,7 +506,7 @@ test('buildAggregatedNow — offline channel has online: false', () => {
   const cache = new Map();
   cache.set('channel_1', { online: false });
 
-  const result = buildAggregatedNow(sampleChannels, cache);
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
   const ch1 = result.channels.find(c => c.id === 'channel_1');
   assert.equal(ch1.online, false);
   assert.equal(ch1.now, null);
@@ -520,7 +514,7 @@ test('buildAggregatedNow — offline channel has online: false', () => {
 
 test('buildAggregatedNow — uncached channel defaults to offline', () => {
   const cache  = new Map();
-  const result = buildAggregatedNow(sampleChannels, cache);
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
   assert.equal(result.channels[0].online, false);
   assert.equal(result.channels[0].now,    null);
 });

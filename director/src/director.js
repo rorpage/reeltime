@@ -32,6 +32,7 @@ const POLL_INTERVAL_MS   = 10_000;
 const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
+const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logging
@@ -170,8 +171,6 @@ function generateCompose(directorConfigPath) {
   const dirCfgBase = path.basename(directorConfigPath);
 
   const lines = [
-    'version: "3.9"',
-    '',
     '# This file is generated from director.config.yaml by running:',
     '#   node director/src/director.js generate > docker-compose.director.yml',
     `# Director : http://localhost:${cfg.port}`,
@@ -277,12 +276,14 @@ function buildAggregatedM3U(channels, host) {
 
 /**
  * Build the aggregated /now response object.
- * @param {Array} channels
- * @param {Map}   channelCache
- * @returns {{ channels: Array }}
+ * @param {string} directorName
+ * @param {Array}  channels
+ * @param {Map}    channelCache
+ * @returns {{ name: string, channels: Array }}
  */
-function buildAggregatedNow(channels, channelCache) {
+function buildAggregatedNow(directorName, channels, channelCache) {
   return {
+    name: directorName,
     channels: channels.map(ch => {
       const cached = channelCache.get(ch.id) || {};
       return {
@@ -316,199 +317,6 @@ function buildHealthResponse(channels, channelCache) {
       };
     }),
   };
-}
-
-/**
- * Build the guide HTML page.
- * @param {string} directorName
- * @param {Array}  channels
- * @param {Map}    channelCache
- * @returns {string}
- */
-function buildGuideHTML(directorName, channels, channelCache) {
-  const cards = channels.map((ch, i) => {
-    const neon   = NEON_COLORS[i % NEON_COLORS.length];
-    const cached = channelCache.get(ch.id) || {};
-    const online = cached.online || false;
-    const now    = cached.now    || null;
-
-    const title    = now?.title    || '—';
-    const progress = now?.progress != null ? Math.round(now.progress * 100) : 0;
-    const rem      = now?.remaining != null ? Math.ceil(now.remaining / 60) : 0;
-    const next     = now?.next      || '—';
-
-    if (!online) {
-      return `
-        <div class="card offline">
-          <div class="card-name" style="color:${neon}">${escHtml(ch.name)}</div>
-          <div class="offline-badge">&#9679; OFFLINE</div>
-        </div>`;
-    }
-
-    return `
-      <div class="card">
-        <div class="card-name" style="color:${neon}">${escHtml(ch.name)}</div>
-        <div class="card-title">${escHtml(title)}</div>
-        <div class="progress-wrap">
-          <div class="progress-bar" style="width:${progress}%;background:${neon}"></div>
-        </div>
-        <div class="card-meta">${progress}% &mdash; ${rem} min remaining</div>
-        <div class="card-next"><span class="label">Next:</span> ${escHtml(next)}</div>
-        <a class="watch-btn" href="/watch/${encodeURIComponent(ch.id)}" style="border-color:${neon};color:${neon}">&#9654; WATCH</a>
-      </div>`;
-  }).join('\n');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escHtml(directorName)}</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: #080a0f;
-      color: #dde4f0;
-      font-family: 'Segoe UI', system-ui, sans-serif;
-      min-height: 100vh;
-    }
-    a { color: inherit; text-decoration: none; }
-
-    /* Header */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 24px;
-      background: #0f1117;
-      border-bottom: 1px solid #1c2033;
-    }
-    .header-title {
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: #00d4ff;
-      text-shadow: 0 0 10px #00d4ff88;
-    }
-    .header-clock {
-      font-size: 0.9rem;
-      color: #8892a4;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 24px;
-    }
-
-    /* Card */
-    .card {
-      background: #0f1117;
-      border: 1px solid #1c2033;
-      border-radius: 8px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: border-color 0.2s;
-    }
-    .card:hover { border-color: #2c3050; }
-    .card.offline { opacity: 0.45; }
-    .card-name {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .card-title {
-      font-size: 0.95rem;
-      color: #dde4f0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .progress-wrap {
-      height: 4px;
-      background: #1c2033;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.4s;
-    }
-    .card-meta { font-size: 0.78rem; color: #8892a4; }
-    .card-next { font-size: 0.82rem; color: #8892a4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-next .label { color: #5a6278; }
-    .offline-badge { color: #8892a4; font-size: 0.85rem; letter-spacing: 0.1em; }
-    .watch-btn {
-      display: inline-block;
-      margin-top: 4px;
-      padding: 6px 14px;
-      border: 1px solid;
-      border-radius: 4px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-      align-self: flex-start;
-      transition: background 0.15s;
-    }
-    .watch-btn:hover { background: #ffffff0d; }
-
-    /* Footer */
-    .footer {
-      border-top: 1px solid #1c2033;
-      padding: 16px 24px;
-      display: flex;
-      gap: 24px;
-      font-size: 0.82rem;
-      color: #5a6278;
-      flex-wrap: wrap;
-    }
-    .footer a:hover { color: #dde4f0; }
-  </style>
-</head>
-<body>
-  <header class="header">
-    <div class="header-title">&#127916; ${escHtml(directorName)}</div>
-    <div class="header-clock" id="clock">UTC</div>
-  </header>
-
-  <main class="grid">
-    ${cards}
-  </main>
-
-  <footer class="footer">
-    <a href="/channels.m3u">&#128250; channels.m3u</a>
-    <a href="/xmltv">&#128197; XMLTV guide</a>
-    <a href="/health">&#128994; health</a>
-  </footer>
-
-  <script>
-    function updateClock() {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      document.getElementById('clock').textContent =
-        now.getUTCFullYear() + '-' +
-        pad(now.getUTCMonth() + 1) + '-' +
-        pad(now.getUTCDate()) + ' ' +
-        pad(now.getUTCHours()) + ':' +
-        pad(now.getUTCMinutes()) + ':' +
-        pad(now.getUTCSeconds()) + ' UTC';
-    }
-    updateClock();
-    setInterval(updateClock, 1000);
-    setTimeout(function () {
-      location.reload();
-    }, 30000);
-  </script>
-</body>
-</html>`;
 }
 
 /**
@@ -820,9 +628,8 @@ function createRequestHandler(directorName, channels, channelCache) {
 
     // GET /
     if (req.method === 'GET' && pathname === '/') {
-      const html = buildGuideHTML(directorName, channels, channelCache);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(html);
+      return res.end(INDEX_HTML);
     }
 
     // GET /watch/:channelId
@@ -842,7 +649,7 @@ function createRequestHandler(directorName, channels, channelCache) {
 
     // GET /now
     if (req.method === 'GET' && pathname === '/now') {
-      const body = JSON.stringify(buildAggregatedNow(channels, channelCache));
+      const body = JSON.stringify(buildAggregatedNow(directorName, channels, channelCache));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(body);
     }
@@ -981,7 +788,6 @@ if (require.main !== module) {
     loadConfig,
     generateCompose,
     buildAggregatedM3U,
-    buildGuideHTML,
     buildPlayerHTML,
     buildAggregatedNow,
     buildHealthResponse,
