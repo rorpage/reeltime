@@ -1,7 +1,8 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json ./
+COPY director/package.json ./
 RUN npm install --omit=dev
-COPY src/ ./src/
+COPY src/utils.js ./src/utils.js
+COPY director/src/ ./director/src/
 EXPOSE 10000
-CMD ["node", "src/director.js"]
+CMD ["node", "director/src/director.js"]

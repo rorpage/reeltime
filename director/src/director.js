@@ -22,6 +22,7 @@ const fs    = require('node:fs');
 const path  = require('node:path');
 const url   = require('node:url');
 const yaml  = require('js-yaml');
+const { toSnakeCase: _toSnakeCase } = require('../../src/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -46,20 +47,10 @@ const error = (...a) => console.error(`${ts()} ERROR`, ...a);
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Convert a string to snake_case (lowercase, non-alphanumeric → underscore,
- * leading/trailing underscores trimmed). Falls back to 'director' if empty.
+ * Convert a string to snake_case, falling back to 'director' when empty.
+ * Delegates to the shared implementation in src/utils.js.
  */
-function toSnakeCase(str) {
-  if (typeof str !== 'string' || str.trim() === '') return 'director';
-  // Collapse any run of non-alphanumeric characters to a single underscore
-  const slug  = str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-  // After the replace above, leading/trailing underscores are at most one char —
-  // trim them with string slicing to avoid regex backtracking concerns.
-  const start = slug[0] === '_' ? 1 : 0;
-  const end   = slug[slug.length - 1] === '_' ? slug.length - 1 : slug.length;
-  const result = slug.slice(start, end);
-  return result.length > 0 ? result : 'director';
-}
+const toSnakeCase = str => _toSnakeCase(str, 'director');
 
 /** HTML-escape a string. */
 function escHtml(s) {
@@ -197,8 +188,8 @@ function generateCompose(directorConfigPath) {
     '',
     '  director:',
     '    build:',
-    '      context: ./director',
-    '      dockerfile: Dockerfile',
+    '      context: .',
+    '      dockerfile: director/Dockerfile',
     '    container_name: reeltime-director',
     '    restart: unless-stopped',
     '    ports:',

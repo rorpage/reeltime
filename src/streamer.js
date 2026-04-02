@@ -21,6 +21,7 @@ const fs                  = require('node:fs');
 const path                = require('node:path');
 const http                = require('node:http');
 const yaml                = require('js-yaml');
+const { toSnakeCase }     = require('./utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -256,14 +257,6 @@ function toXMLTVDate(ms) {
     pad2(d.getUTCSeconds())    +
     ' +0000'
   );
-}
-
-/** Convert a label into a stable snake_case identifier. */
-function toSnakeCase(str) {
-  return String(str || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'reeltime';
 }
 
 /** XML-safe string escaping. */

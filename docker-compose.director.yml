@@ -26,8 +26,8 @@ services:
 
   director:
     build:
-      context: ./director
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: director/Dockerfile
     container_name: reeltime-director
     restart: unless-stopped
     ports:
