@@ -39,13 +39,11 @@ const CFG = {
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
   foreverPasses: +(process.env.PASSES_PER_CYCLE || 3),
+  containerName:   process.env.CONTAINER_NAME || 'reeltime',
   statePath:       process.env.STATE_PATH || (() => {
                      const cfgPath = process.env.CONFIG_PATH || '/config/config.yaml';
-                     const cfgBase = path.basename(cfgPath, path.extname(cfgPath));
-                     return path.join(
-                       path.dirname(cfgPath),
-                       `state.${cfgBase}.${process.env.HOSTNAME || 'default'}.json`,
-                     );
+                     const name    = process.env.CONTAINER_NAME || 'reeltime';
+                     return path.join(path.dirname(cfgPath), `state.${name}.json`);
                    })(),
   stateMaxAgeSec: +(process.env.STATE_MAX_AGE_SEC || 86400),
   debug:           process.env.DEBUG === '1',
@@ -361,7 +359,7 @@ const playState = {
 // position are written atomically to a JSON file so the stream can resume
 // approximately where it left off after a restart.
 //
-// File location: STATE_PATH  (default: <config dir>/state.<HOSTNAME>.json)
+// File location: STATE_PATH  (default: <config dir>/state.<CONTAINER_NAME>.json)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_SAVE_INTERVAL_MS = 5000;

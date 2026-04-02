@@ -13,8 +13,8 @@ services:
 
     volumes:
       # Mount the entire config directory so that Reeltime can read config.yaml
-      # and write the playback state file (state.<config-basename>.<hostname>.json)
-      # alongside it.  This ensures the state survives container recreation
+      # and write the playback state file (state.<CONTAINER_NAME>.json) alongside it.
+      # This ensures the state survives container recreation
       # (docker compose down && up) and not just restarts.
       # Put your config.yaml file(s) inside the ./config/ directory.
       - ./config:/config
@@ -32,6 +32,9 @@ services:
       # Rule of thumb: ceil(target_days / (num_videos × avg_duration_hours))
       PASSES_PER_CYCLE: "${PASSES_PER_CYCLE:-3}"
       FIFO_PATH:        "${FIFO_PATH:-/tmp/playlist.ffconcat}"
+      # Used to name the playback state file: state.<CONTAINER_NAME>.json
+      # Should match the container_name field above so the file is stable across restarts.
+      CONTAINER_NAME:   "${CONTAINER_NAME:-reeltime}"
       # DEBUG: "1"
 
     deploy:
