@@ -51,11 +51,14 @@ const error = (...a) => console.error(`${ts()} ERROR`, ...a);
  */
 function toSnakeCase(str) {
   if (typeof str !== 'string' || str.trim() === '') return 'director';
-  return str
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+/, '')
-    .replace(/_+$/, '');
+  // Collapse any run of non-alphanumeric characters to a single underscore
+  const slug  = str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  // After the replace above, leading/trailing underscores are at most one char —
+  // trim them with string slicing to avoid regex backtracking concerns.
+  const start = slug[0] === '_' ? 1 : 0;
+  const end   = slug[slug.length - 1] === '_' ? slug.length - 1 : slug.length;
+  const result = slug.slice(start, end);
+  return result.length > 0 ? result : 'director';
 }
 
 /** HTML-escape a string. */
