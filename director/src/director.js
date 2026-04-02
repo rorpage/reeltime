@@ -54,7 +54,8 @@ function toSnakeCase(str) {
   return str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .replace(/^_+/, '')
+    .replace(/_+$/, '');
 }
 
 /** HTML-escape a string. */
@@ -755,12 +756,12 @@ function mergeXmltvDocuments(channels, settledResults) {
     const ch = channels[i];
     if (!body) return;
 
-    // Extract <channel ...>...</channel> blocks
-    const chMatches = body.match(/<channel[\s\S]*?<\/channel>/g) || [];
+    // Extract <channel ...>...</channel> blocks (tempered greedy to avoid ReDoS)
+    const chMatches = body.match(/<channel(?:(?!<\/channel>)[\s\S])*<\/channel>/g) || [];
     channelBlocks.push(...chMatches);
 
-    // Extract <programme ...>...</programme> blocks, injecting channel id if needed
-    const progMatches = body.match(/<programme[\s\S]*?<\/programme>/g) || [];
+    // Extract <programme ...>...</programme> blocks (tempered greedy to avoid ReDoS)
+    const progMatches = body.match(/<programme(?:(?!<\/programme>)[\s\S])*<\/programme>/g) || [];
     programmeBlocks.push(...progMatches);
 
     // If no channel block found, synthesise a minimal one
