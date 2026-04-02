@@ -2,8 +2,8 @@
 .env
 .env.local
 
-# Configuration
-config.yaml
+# Configuration directory (config files and state files live here)
+config/
 
 # Dependencies
 node_modules/
