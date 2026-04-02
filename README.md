@@ -24,11 +24,12 @@ Notes:
 
 ## Quick Start (Docker Compose)
 
-1. Copy the sample config:
+1. Copy the sample config into a `config/` directory:
 
-	cp config.example.yaml config.yaml
+	mkdir -p config
+	cp config.example.yaml config/config.yaml
 
-2. Edit config.yaml with your video URLs and durations.
+2. Edit config/config.yaml with your video URLs and durations.
 
 3. Start the service:
 
@@ -151,21 +152,18 @@ The state file is ignored and playback starts from the beginning if:
 - `videoIndex` is out of bounds (playlist has changed).
 - The file is older than `STATE_MAX_AGE_SEC` seconds (default 24 hours).
 
-The state file is written alongside the config file inside the container. With the default `docker compose` setup (a single file bind mount `./config.yaml:/config/config.yaml:ro`), the file persists across `docker restart` and crash-recovery restarts but is lost when the container is fully recreated (`docker compose down && up`). To preserve state across full recreation, mount the entire config directory:
-
-	# put config.yaml inside ./config/
-	- ./config:/config
+The state file is written alongside the config file inside the container. With the default `docker compose` setup (directory bind mount `./config:/config`), the state file survives both `docker restart` / crash-recovery restarts and full container recreation (`docker compose down && up`).
 
 ## Docker
 
 Build and run directly:
 
 docker build -t reeltime .
-docker run -p 8080:8080 -v $(pwd)/config.yaml:/config/config.yaml:ro reeltime
+docker run -p 8080:8080 -v $(pwd)/config:/config reeltime
 
 On Windows PowerShell:
 
-docker run -p 8080:8080 -v ${PWD}/config.yaml:/config/config.yaml:ro reeltime
+docker run -p 8080:8080 -v ${PWD}/config:/config reeltime
 
 ## Development Notes
 
