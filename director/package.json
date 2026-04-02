@@ -4,9 +4,10 @@
   "description": "Guide and player aggregator for multiple Reeltime HLS stream instances",
   "main": "src/director.js",
   "scripts": {
-    "start": "node src/director.js",
-    "dev":   "node --watch src/director.js",
-    "test":  "node --test src/director.test.js"
+    "start":    "node src/director.js",
+    "dev":      "node --watch src/director.js",
+    "test":     "node --test src/director.test.js",
+    "generate": "node src/director.js generate"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

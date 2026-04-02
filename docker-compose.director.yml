@@ -3,17 +3,23 @@ version: "3.9"
 # ─────────────────────────────────────────────────────────────────────────────
 # Reeltime Director Stack
 #
-# Director:      http://localhost:10000
-# Channel 1:     http://localhost:10001
-# Channel 2:     http://localhost:10002
+# This file is generated from director.config.yaml by running:
+#   node director/src/director.js generate > docker-compose.director.yml
+#
+# Director : http://localhost:10000
+# Channel 1 (reeltime-channel_1): http://localhost:10001
+# Channel 2 (reeltime-channel_2): http://localhost:10002
 #
 # Usage:
 #   1. Copy config files:
 #        cp director/director.config.example.yaml director.config.yaml
 #        cp config.example.yaml channel1.config.yaml
 #        cp config.example.yaml channel2.config.yaml
-#   2. Edit each config to taste.
-#   3. docker compose -f docker-compose.director.yml up --build
+#   2. Edit each config to taste (stream.name in each channel config is how
+#      Director names and identifies that channel).
+#   3. Generate the compose file:
+#        node director/src/director.js generate > docker-compose.director.yml
+#   4. docker compose -f docker-compose.director.yml up --build
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
@@ -28,12 +34,14 @@ services:
       - "10000:10000"
     volumes:
       - ./director.config.yaml:/config/director.config.yaml:ro
+      - ./channel1.config.yaml:/config/channel1.config.yaml:ro
+      - ./channel2.config.yaml:/config/channel2.config.yaml:ro
     environment:
-      PORT:             "10000"
-      DIRECTOR_CONFIG:  "/config/director.config.yaml"
+      PORT:            "10000"
+      DIRECTOR_CONFIG: "/config/director.config.yaml"
     depends_on:
-      - reeltime-1
-      - reeltime-2
+      - reeltime-channel_1
+      - reeltime-channel_2
     healthcheck:
       test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:10000/health"]
       interval:     30s
@@ -41,11 +49,11 @@ services:
       start_period: 30s
       retries:      3
 
-  reeltime-1:
+  reeltime-channel_1:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: reeltime-1
+    container_name: reeltime-channel_1
     restart: unless-stopped
     ports:
       - "10001:8080"
@@ -68,11 +76,11 @@ services:
       start_period: 90s
       retries:      3
 
-  reeltime-2:
+  reeltime-channel_2:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: reeltime-2
+    container_name: reeltime-channel_2
     restart: unless-stopped
     ports:
       - "10002:8080"
@@ -94,3 +102,4 @@ services:
       timeout:      10s
       start_period: 90s
       retries:      3
+

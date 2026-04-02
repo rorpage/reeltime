@@ -16,7 +16,9 @@ const {
   escHtml,
   escXML,
   deriveChannelId,
+  readChannelConfig,
   loadConfig,
+  generateCompose,
   buildAggregatedM3U,
   buildGuideHTML,
   buildPlayerHTML,
@@ -28,14 +30,22 @@ const {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Write a YAML string to a temp file and return the file path.
- * Uses os.tmpdir() for cross-platform safety.
- */
-function writeTempYaml(content) {
-  const filePath = path.join(os.tmpdir(), `director-test-${Date.now()}-${Math.random().toString(36).slice(2)}.yaml`);
-  fs.writeFileSync(filePath, content, 'utf8');
-  return filePath;
+function tmpFile(ext) {
+  return path.join(os.tmpdir(), `director-test-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+}
+
+/** Write content to a new temp file; return its path. */
+function writeTmp(content, ext = '.yaml') {
+  const f = tmpFile(ext);
+  fs.writeFileSync(f, content, 'utf8');
+  return f;
+}
+
+/** Minimal reeltime config with a given stream name. */
+function reeltimeCfg(name, opts = {}) {
+  const channelId = opts.channelId ? `\n  channel_id: "${opts.channelId}"` : '';
+  const icon      = opts.icon      ? `\n  icon: "${opts.icon}"` : '';
+  return `stream:\n  name: "${name}"${channelId}${icon}\nvideos:\n  - title: "T"\n    url: "http://x"\n    duration: 60\n`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,102 +121,263 @@ test('escXML — escapes combined XML string', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('deriveChannelId — uses id when present', () => {
-  assert.equal(deriveChannelId({ id: 'my_custom_id', name: 'Channel 1', url: 'http://x' }), 'my_custom_id');
+  assert.equal(deriveChannelId({ id: 'my_custom_id', name: 'Channel 1' }), 'my_custom_id');
 });
 
 test('deriveChannelId — derives from name when no id', () => {
-  assert.equal(deriveChannelId({ name: 'Channel One', url: 'http://x' }), 'channel_one');
-  assert.equal(deriveChannelId({ name: 'BBC News 24', url: 'http://x' }), 'bbc_news_24');
+  assert.equal(deriveChannelId({ name: 'Channel One' }), 'channel_one');
+  assert.equal(deriveChannelId({ name: 'BBC News 24' }), 'bbc_news_24');
 });
 
 test('deriveChannelId — ignores empty id, falls back to name', () => {
-  assert.equal(deriveChannelId({ id: '', name: 'Channel X', url: 'http://x' }), 'channel_x');
-  assert.equal(deriveChannelId({ id: '   ', name: 'Channel X', url: 'http://x' }), 'channel_x');
+  assert.equal(deriveChannelId({ id: '', name: 'Channel X' }),    'channel_x');
+  assert.equal(deriveChannelId({ id: '   ', name: 'Channel X' }), 'channel_x');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. loadConfig
+// 5. readChannelConfig
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('loadConfig — throws when channels key is missing', () => {
-  const f = writeTempYaml('director:\n  name: "Test"\n');
+test('readChannelConfig — throws when file not found', () => {
   assert.throws(
-    () => loadConfig(f),
-    /channels/i,
+    () => readChannelConfig('/nonexistent/path/channel.yaml', 0, null),
+    /not found/i,
   );
+});
+
+test('readChannelConfig — reads stream.name', () => {
+  const f   = writeTmp(reeltimeCfg('My Channel'));
+  const ch  = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.name, 'My Channel');
+});
+
+test('readChannelConfig — derives id from name when channel_id absent', () => {
+  const f  = writeTmp(reeltimeCfg('My Channel'));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.id, 'my_channel');
+});
+
+test('readChannelConfig — uses stream.channel_id when present', () => {
+  const f  = writeTmp(reeltimeCfg('My Channel', { channelId: 'custom_id' }));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.id, 'custom_id');
+});
+
+test('readChannelConfig — derives url from channel id', () => {
+  const f  = writeTmp(reeltimeCfg('News Now'));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.url, 'http://reeltime-news_now:8080');
+});
+
+test('readChannelConfig — respects urlOverride', () => {
+  const f  = writeTmp(reeltimeCfg('News Now'));
+  const ch = readChannelConfig(f, 0, 'http://custom-host:9000');
+  fs.unlinkSync(f);
+  assert.equal(ch.url, 'http://custom-host:9000');
+});
+
+test('readChannelConfig — assigns port = 10001 + index', () => {
+  const f0 = writeTmp(reeltimeCfg('Ch A'));
+  const f1 = writeTmp(reeltimeCfg('Ch B'));
+  const f2 = writeTmp(reeltimeCfg('Ch C'));
+  assert.equal(readChannelConfig(f0, 0, null).port, 10001);
+  assert.equal(readChannelConfig(f1, 1, null).port, 10002);
+  assert.equal(readChannelConfig(f2, 2, null).port, 10003);
+  [f0, f1, f2].forEach(f => fs.unlinkSync(f));
+});
+
+test('readChannelConfig — reads stream.icon', () => {
+  const f  = writeTmp(reeltimeCfg('Ch', { icon: 'https://example.com/icon.png' }));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.icon, 'https://example.com/icon.png');
+});
+
+test('readChannelConfig — defaults to empty icon when absent', () => {
+  const f  = writeTmp(reeltimeCfg('Ch'));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.icon, '');
+});
+
+test('readChannelConfig — exposes configPath', () => {
+  const f  = writeTmp(reeltimeCfg('Ch'));
+  const ch = readChannelConfig(f, 0, null);
+  fs.unlinkSync(f);
+  assert.equal(ch.configPath, f);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. loadConfig
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('loadConfig — throws when configs key is missing', () => {
+  const f = writeTmp('director:\n  name: "Test"\n');
+  assert.throws(() => loadConfig(f), /configs/i);
   fs.unlinkSync(f);
 });
 
-test('loadConfig — throws when channels array is empty', () => {
-  const f = writeTempYaml('director:\n  name: "Test"\nchannels: []\n');
-  assert.throws(
-    () => loadConfig(f),
-    /channels/i,
-  );
+test('loadConfig — throws when configs array is empty', () => {
+  const f = writeTmp('director:\n  name: "Test"\nconfigs: []\n');
+  assert.throws(() => loadConfig(f), /configs/i);
   fs.unlinkSync(f);
 });
 
-test('loadConfig — throws when channel lacks url', () => {
-  const f = writeTempYaml(
-    'channels:\n  - name: "Chan1"\n',
-  );
-  assert.throws(
-    () => loadConfig(f),
-    /url/i,
-  );
+test('loadConfig — throws when a referenced config file does not exist', () => {
+  const f = writeTmp('configs:\n  - /nonexistent/channel.yaml\n');
+  assert.throws(() => loadConfig(f), /not found/i);
   fs.unlinkSync(f);
 });
 
-test('loadConfig — throws when channel lacks name', () => {
-  const f = writeTempYaml(
-    'channels:\n  - url: "http://x"\n',
-  );
-  assert.throws(
-    () => loadConfig(f),
-    /name/i,
-  );
-  fs.unlinkSync(f);
+test('loadConfig — reads channel name and id from reeltime config files', () => {
+  const ch1 = writeTmp(reeltimeCfg('Channel 1'));
+  const ch2 = writeTmp(reeltimeCfg('Channel 2', { channelId: 'ch2_custom' }));
+  const dir = writeTmp(`configs:\n  - ${ch1}\n  - ${ch2}\n`);
+
+  const cfg = loadConfig(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels.length, 2);
+  assert.equal(cfg.channels[0].name, 'Channel 1');
+  assert.equal(cfg.channels[0].id,   'channel_1');
+  assert.equal(cfg.channels[1].name, 'Channel 2');
+  assert.equal(cfg.channels[1].id,   'ch2_custom');
 });
 
-test('loadConfig — returns correct shape for valid config', () => {
-  const f = writeTempYaml(`
-director:
-  name: "My Director"
-channels:
-  - name: "Channel 1"
-    url: "http://reeltime-1:8080"
-  - name: "Channel 2"
-    id: "ch2"
-    url: "http://reeltime-2:8080"
-`);
-  const cfg = loadConfig(f);
-  fs.unlinkSync(f);
+test('loadConfig — derives channel url from id', () => {
+  const ch = writeTmp(reeltimeCfg('Sports HD'));
+  const dir = writeTmp(`configs:\n  - ${ch}\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels[0].url, 'http://reeltime-sports_hd:8080');
+});
+
+test('loadConfig — respects per-entry url override', () => {
+  const ch  = writeTmp(reeltimeCfg('Sports HD'));
+  const dir = writeTmp(`configs:\n  - path: ${ch}\n    url: http://remote:9001\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels[0].url, 'http://remote:9001');
+});
+
+test('loadConfig — returns correct directorName', () => {
+  const ch  = writeTmp(reeltimeCfg('C'));
+  const dir = writeTmp(`director:\n  name: "My Director"\nconfigs:\n  - ${ch}\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
 
   assert.equal(cfg.directorName, 'My Director');
-  assert.equal(cfg.channels.length, 2);
-  assert.equal(cfg.channels[0].id,   'channel_1');
-  assert.equal(cfg.channels[0].name, 'Channel 1');
-  assert.equal(cfg.channels[0].url,  'http://reeltime-1:8080');
-  assert.equal(cfg.channels[1].id,   'ch2');
-  assert.equal(cfg.channels[1].url,  'http://reeltime-2:8080');
 });
 
 test('loadConfig — defaults directorName when director.name absent', () => {
-  const f = writeTempYaml(
-    'channels:\n  - name: "C"\n    url: "http://x"\n',
-  );
-  const cfg = loadConfig(f);
-  fs.unlinkSync(f);
+  const ch  = writeTmp(reeltimeCfg('C'));
+  const dir = writeTmp(`configs:\n  - ${ch}\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
   assert.equal(cfg.directorName, 'Reeltime Director');
 });
 
+test('loadConfig — resolves relative config paths', () => {
+  // Write channel config and director config in the same temp dir,
+  // then reference the channel by relative path.
+  const ch   = writeTmp(reeltimeCfg('Relative Ch'));
+  const base = path.basename(ch);
+  const dir  = writeTmp(`configs:\n  - ./${base}\n`);
+  // Move director config to same directory as ch
+  const dirSameDir = path.join(os.tmpdir(), `dir-${Date.now()}.yaml`);
+  fs.copyFileSync(dir, dirSameDir);
+  fs.unlinkSync(dir);
+
+  const cfg = loadConfig(dirSameDir);
+  [ch, dirSameDir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels[0].name, 'Relative Ch');
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. buildAggregatedM3U
+// 7. generateCompose
+// ─────────────────────────────────────────────────────────────────────────────
+
+function makeDirectorCfg() {
+  const ch1 = writeTmp(reeltimeCfg('Channel 1'));
+  const ch2 = writeTmp(reeltimeCfg('Channel 2'));
+  const dir = writeTmp(`configs:\n  - ${ch1}\n  - ${ch2}\n`);
+  return { ch1, ch2, dir };
+}
+
+test('generateCompose — contains director service', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('reeltime-director'));
+  assert.ok(out.includes('director:'));
+});
+
+test('generateCompose — contains a reeltime service per channel', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('reeltime-channel_1'));
+  assert.ok(out.includes('reeltime-channel_2'));
+});
+
+test('generateCompose — assigns sequential host ports', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('"10001:8080"'));
+  assert.ok(out.includes('"10002:8080"'));
+});
+
+test('generateCompose — director listens on port 10000', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('"10000:10000"'));
+});
+
+test('generateCompose — contains volume mounts for channel configs', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('/config/config.yaml:ro'));
+});
+
+test('generateCompose — contains volume mount for director config', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const dirBase = path.basename(dir);
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes(`/config/${dirBase}:ro`));
+});
+
+test('generateCompose — contains depends_on for each channel', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('depends_on'));
+  assert.ok(out.includes('- reeltime-channel_1'));
+  assert.ok(out.includes('- reeltime-channel_2'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. buildAggregatedM3U
 // ─────────────────────────────────────────────────────────────────────────────
 
 const sampleChannels = [
-  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-1:8080' },
-  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-2:8080' },
+  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080' },
+  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080' },
 ];
 
 test('buildAggregatedM3U — starts with #EXTM3U', () => {
@@ -221,8 +392,8 @@ test('buildAggregatedM3U — contains tvg-url pointing to /xmltv', () => {
 
 test('buildAggregatedM3U — contains correct stream URLs', () => {
   const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.includes('http://reeltime-1:8080/stream.m3u8'));
-  assert.ok(m3u.includes('http://reeltime-2:8080/stream.m3u8'));
+  assert.ok(m3u.includes('http://reeltime-channel_1:8080/stream.m3u8'));
+  assert.ok(m3u.includes('http://reeltime-channel_2:8080/stream.m3u8'));
 });
 
 test('buildAggregatedM3U — contains channel names in EXTINF lines', () => {
@@ -232,7 +403,7 @@ test('buildAggregatedM3U — contains channel names in EXTINF lines', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. buildGuideHTML
+// 9. buildGuideHTML
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildGuideHTML — contains channel names', () => {
@@ -276,41 +447,41 @@ test('buildGuideHTML — contains director name in title', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. buildPlayerHTML
+// 10. buildPlayerHTML
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildPlayerHTML — contains channel name', () => {
-  const ch   = { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-1:8080' };
+  const ch   = sampleChannels[0];
   const html = buildPlayerHTML(ch, '#00d4ff');
   assert.ok(html.includes('Channel 1'));
 });
 
 test('buildPlayerHTML — contains stream.m3u8 URL', () => {
-  const ch   = { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-1:8080' };
+  const ch   = sampleChannels[0];
   const html = buildPlayerHTML(ch, '#00d4ff');
-  assert.ok(html.includes('http://reeltime-1:8080/stream.m3u8'));
+  assert.ok(html.includes('http://reeltime-channel_1:8080/stream.m3u8'));
 });
 
 test('buildPlayerHTML — contains neon color', () => {
-  const ch   = { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-2:8080' };
+  const ch   = sampleChannels[1];
   const html = buildPlayerHTML(ch, '#39ff14');
   assert.ok(html.includes('#39ff14'));
 });
 
 test('buildPlayerHTML — contains back link to guide', () => {
-  const ch   = { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-1:8080' };
+  const ch   = sampleChannels[0];
   const html = buildPlayerHTML(ch, '#00d4ff');
   assert.ok(html.includes('href="/"'));
 });
 
 test('buildPlayerHTML — contains HLS.js script tag', () => {
-  const ch   = { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-1:8080' };
+  const ch   = sampleChannels[0];
   const html = buildPlayerHTML(ch, '#00d4ff');
   assert.ok(html.includes('hls.js'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. buildAggregatedNow
+// 11. buildAggregatedNow
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildAggregatedNow — returns correct shape', () => {
@@ -334,7 +505,7 @@ test('buildAggregatedNow — online channel has correct data', () => {
   assert.equal(ch1.online, true);
   assert.equal(ch1.now.title, 'Movie A');
   assert.equal(ch1.name, 'Channel 1');
-  assert.equal(ch1.url,  'http://reeltime-1:8080');
+  assert.equal(ch1.url,  'http://reeltime-channel_1:8080');
 });
 
 test('buildAggregatedNow — offline channel has online: false', () => {
@@ -355,7 +526,7 @@ test('buildAggregatedNow — uncached channel defaults to offline', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. buildHealthResponse
+// 12. buildHealthResponse
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildHealthResponse — returns status: ok', () => {
@@ -384,7 +555,7 @@ test('buildHealthResponse — includes channels array with correct shape', () =>
   assert.ok(ch1);
   assert.equal(ch1.online, true);
   assert.equal(ch1.name, 'Channel 1');
-  assert.equal(ch1.url,  'http://reeltime-1:8080');
+  assert.equal(ch1.url,  'http://reeltime-channel_1:8080');
 
   const ch2 = result.channels.find(c => c.id === 'channel_2');
   assert.equal(ch2.online, false);
@@ -396,3 +567,4 @@ test('buildHealthResponse — uncached channel is offline', () => {
   assert.equal(result.channels[0].online, false);
   assert.equal(result.channels[1].online, false);
 });
+

@@ -1,19 +1,30 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Reeltime Director — Configuration
 # ─────────────────────────────────────────────────────────────────────────────
+#
+# Director reads each reeltime config file to derive the channel name, id,
+# icon, and Docker service name automatically — no need to repeat that
+# information here.
+#
+# After editing this file, regenerate docker-compose.director.yml with:
+#   node director/src/director.js generate > docker-compose.director.yml
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
 director:
   name: "Reeltime Director"   # display name shown in the UI
   # port: 10000               # HTTP port (default 10000, overridden by PORT env var)
 
-channels:
-  - name: "Channel 1"
-    # id: "channel_1"         # optional; auto-derived from name in snake_case
-    url: "http://reeltime-1:8080"
+configs:
+  # Path to each reeltime config.yaml (relative to this file, or absolute).
+  # Director auto-derives the channel name, id, and container URL from each file.
+  # Channels are assigned ports 10001, 10002, … in the order listed here.
+  - ./channel1.config.yaml
+  - ./channel2.config.yaml
 
-  - name: "Channel 2"
-    url: "http://reeltime-2:8080"
+  # Optional: override the URL if the reeltime instance is not on the default
+  # Docker service URL (useful for remote hosts or non-standard ports):
+  # - path: ./channel3.config.yaml
+  #   url:  http://my-other-host:9000
 
-  # Add more channels as needed:
-  # - name: "Channel 3"
-  #   url: "http://reeltime-3:8080"
+  # Add more channels as needed — just drop another config file here.

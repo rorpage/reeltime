@@ -88,32 +88,183 @@ function deriveChannelId(ch) {
 }
 
 /**
+ * Read one reeltime config file and return a Director channel descriptor.
+ *
+ * @param {string}      absPath      Absolute path to the reeltime config.yaml
+ * @param {number}      index        Zero-based position in the configs array
+ *                                   (used to assign the default host port 10001+i)
+ * @param {string|null} urlOverride  Optional URL override (skips auto-derivation)
+ * @returns {{ id, name, icon, url, port, configPath }}
+ */
+function readChannelConfig(absPath, index, urlOverride) {
+  if (!fs.existsSync(absPath)) {
+    throw new Error(`Reeltime config not found: ${absPath}`);
+  }
+
+  const raw  = yaml.load(fs.readFileSync(absPath, 'utf8'));
+  const name = String(raw?.stream?.name || `Channel ${index + 1}`);
+  const id   = raw?.stream?.channel_id
+    ? String(raw.stream.channel_id)
+    : toSnakeCase(name);
+  const icon = String(raw?.stream?.icon || '');
+  const url  = urlOverride
+    ? String(urlOverride).replace(/\/$/, '')
+    : `http://reeltime-${id}:8080`;
+  const port = 10001 + index;
+
+  return { id, name, icon, url, port, configPath: absPath };
+}
+
+/**
  * Load and validate the director YAML config.
- * @param {string} filePath
+ *
+ * Config format:
+ *   director:
+ *     name: "Reeltime Director"   # optional
+ *   configs:
+ *     - ./channel1.config.yaml    # path relative to this file (or absolute)
+ *     - path: ./channel2.config.yaml
+ *       url:  http://custom-host:9000   # optional URL override
+ *
+ * @param {string} filePath  Path to the director config YAML
  * @returns {{ directorName: string, port: number, channels: Array }}
  */
 function loadConfig(filePath) {
   const raw = yaml.load(fs.readFileSync(filePath, 'utf8'));
 
-  if (!Array.isArray(raw?.channels) || raw.channels.length === 0) {
-    throw new Error('"channels" must be a non-empty array in the config');
+  if (!Array.isArray(raw?.configs) || raw.configs.length === 0) {
+    throw new Error('"configs" must be a non-empty array of reeltime config file paths');
   }
-
-  raw.channels.forEach((ch, i) => {
-    if (!ch.name) throw new Error(`Channel ${i + 1}: "name" is required`);
-    if (!ch.url)  throw new Error(`Channel ${i + 1}: "url" is required`);
-  });
 
   const directorName = String(raw.director?.name || 'Reeltime Director');
   const port         = Number(raw.director?.port  || DEFAULT_PORT);
+  const configDir    = path.dirname(path.resolve(filePath));
 
-  const channels = raw.channels.map(ch => ({
-    id:   deriveChannelId(ch),
-    name: String(ch.name),
-    url:  String(ch.url).replace(/\/$/, ''),
-  }));
+  const channels = raw.configs.map((entry, i) => {
+    const cfgPath    = typeof entry === 'string' ? entry : String(entry.path);
+    const urlOverride = typeof entry === 'object' && entry.url ? String(entry.url) : null;
+    const absPath    = path.isAbsolute(cfgPath) ? cfgPath : path.resolve(configDir, cfgPath);
+    return readChannelConfig(absPath, i, urlOverride);
+  });
 
   return { directorName, port, channels };
+}
+
+/**
+ * Generate a docker-compose YAML string for the full Director stack.
+ *
+ * The generated file:
+ *  - runs the Director container on its configured port
+ *  - runs one `reeltime-{id}` container per channel, each on port 10001+i
+ *  - mounts every config file into the Director container at /config/{basename}
+ *  - mounts each channel config into its own reeltime container at /config/config.yaml
+ *
+ * Relative volume paths are computed from the director config file's directory
+ * so the output is correct when written next to the director config.
+ *
+ * @param {string} directorConfigPath  Path to director.config.yaml
+ * @returns {string}  Complete docker-compose YAML
+ */
+function generateCompose(directorConfigPath) {
+  const cfg    = loadConfig(directorConfigPath);
+  const cfgDir = path.dirname(path.resolve(directorConfigPath));
+
+  /** Make a path relative to cfgDir, prefixed with ./ */
+  function rel(absPath) {
+    const r = path.relative(cfgDir, absPath);
+    return r.startsWith('..') ? absPath : `./${r}`;
+  }
+
+  const dirCfgRel  = rel(path.resolve(directorConfigPath));
+  const dirCfgBase = path.basename(directorConfigPath);
+
+  const lines = [
+    'version: "3.9"',
+    '',
+    '# This file is generated from director.config.yaml by running:',
+    '#   node director/src/director.js generate > docker-compose.director.yml',
+    `# Director : http://localhost:${cfg.port}`,
+  ];
+
+  cfg.channels.forEach(ch => {
+    lines.push(`# ${ch.name.padEnd(16)} (reeltime-${ch.id}): http://localhost:${ch.port}`);
+  });
+
+  // ── director service ──────────────────────────────────────────────────────
+  lines.push(
+    '',
+    'services:',
+    '',
+    '  director:',
+    '    build:',
+    '      context: ./director',
+    '      dockerfile: Dockerfile',
+    '    container_name: reeltime-director',
+    '    restart: unless-stopped',
+    '    ports:',
+    `      - "${cfg.port}:10000"`,
+    '    volumes:',
+    `      - ${dirCfgRel}:/config/${dirCfgBase}:ro`,
+  );
+
+  cfg.channels.forEach(ch => {
+    const chRel  = rel(ch.configPath);
+    const chBase = path.basename(ch.configPath);
+    lines.push(`      - ${chRel}:/config/${chBase}:ro`);
+  });
+
+  lines.push(
+    '    environment:',
+    `      PORT:            "${cfg.port}"`,
+    `      DIRECTOR_CONFIG: "/config/${dirCfgBase}"`,
+    '    depends_on:',
+  );
+  cfg.channels.forEach(ch => lines.push(`      - reeltime-${ch.id}`));
+
+  lines.push(
+    '    healthcheck:',
+    `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:${cfg.port}/health"]`,
+    '      interval:     30s',
+    '      timeout:      10s',
+    '      start_period: 30s',
+    '      retries:      3',
+  );
+
+  // ── reeltime services ─────────────────────────────────────────────────────
+  cfg.channels.forEach(ch => {
+    const chRel = rel(ch.configPath);
+    lines.push(
+      '',
+      `  reeltime-${ch.id}:`,
+      '    build:',
+      '      context: .',
+      '      dockerfile: Dockerfile',
+      `    container_name: reeltime-${ch.id}`,
+      '    restart: unless-stopped',
+      '    ports:',
+      `      - "${ch.port}:8080"`,
+      '    volumes:',
+      `      - ${chRel}:/config/config.yaml:ro`,
+      '    environment:',
+      '      PORT:             "8080"',
+      '      HLS_SEG:          "${HLS_SEG:-6}"',
+      '      HLS_SIZE:         "${HLS_SIZE:-10}"',
+      '      RESOLUTION:       "${RESOLUTION:-1280:720}"',
+      '      VIDEO_BITRATE:    "${VIDEO_BITRATE:-2000k}"',
+      '      AUDIO_BITRATE:    "${AUDIO_BITRATE:-128k}"',
+      '      FRAMERATE:        "${FRAMERATE:-30}"',
+      '      FFMPEG_THREADS:   "${FFMPEG_THREADS:-0}"',
+      '      PASSES_PER_CYCLE: "${PASSES_PER_CYCLE:-3}"',
+      '    healthcheck:',
+      '      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]',
+      '      interval:     30s',
+      '      timeout:      10s',
+      '      start_period: 90s',
+      '      retries:      3',
+    );
+  });
+
+  return lines.join('\n') + '\n';
 }
 
 /**
@@ -147,8 +298,8 @@ function buildAggregatedNow(channels, channelCache) {
         id:     ch.id,
         name:   ch.name,
         url:    ch.url,
-        now:    cached.now    || null,
-        online: cached.online || false,
+        now:    cached.now    ?? null,
+        online: cached.online ?? false,
       };
     }),
   };
@@ -170,7 +321,7 @@ function buildHealthResponse(channels, channelCache) {
         id:     ch.id,
         name:   ch.name,
         url:    ch.url,
-        online: cached.online || false,
+        online: cached.online ?? false,
       };
     }),
   };
@@ -835,7 +986,9 @@ if (require.main !== module) {
     escHtml,
     escXML,
     deriveChannelId,
+    readChannelConfig,
     loadConfig,
+    generateCompose,
     buildAggregatedM3U,
     buildGuideHTML,
     buildPlayerHTML,
@@ -845,6 +998,16 @@ if (require.main !== module) {
     pollChannels,
     mergeXmltvDocuments,
   };
+} else if (process.argv[2] === 'generate') {
+  // ── CLI: generate docker-compose ──────────────────────────────────────────
+  // Usage: node src/director.js generate [path/to/director.config.yaml]
+  const cfgPath = process.argv[3] || process.env.DIRECTOR_CONFIG || DEFAULT_CFG_PATH;
+  try {
+    process.stdout.write(generateCompose(cfgPath));
+  } catch (e) {
+    error(`generate failed: ${e.message}`);
+    process.exit(1);
+  }
 } else {
   main();
 }
