@@ -21,7 +21,7 @@ const fs                  = require('node:fs');
 const path                = require('node:path');
 const http                = require('node:http');
 const yaml                = require('js-yaml');
-const { toSnakeCase }     = require('./utils');
+const { toSnakeCase, escHtml, escXML } = require('./utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -257,16 +257,6 @@ function toXMLTVDate(ms) {
     pad2(d.getUTCSeconds())    +
     ' +0000'
   );
-}
-
-/** XML-safe string escaping. */
-function escXML(s) {
-  return String(s)
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&apos;');
 }
 
 function normalizeXMLTVValueDate(value) {
@@ -507,11 +497,6 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Cache-Control':                'no-cache, no-store',
 };
-
-function escHtml(s) {
-  return String(s).replace(/[&<>"']/g,
-    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
 
 function buildPlayerHTML(name) {
   const n = escHtml(name);

@@ -22,7 +22,7 @@ const fs    = require('node:fs');
 const path  = require('node:path');
 const url   = require('node:url');
 const yaml  = require('js-yaml');
-const { toSnakeCase: _toSnakeCase } = require('../../src/utils');
+const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../src/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -52,26 +52,6 @@ const error = (...a) => console.error(`${ts()} ERROR`, ...a);
  * Delegates to the shared implementation in src/utils.js.
  */
 const toSnakeCase = str => _toSnakeCase(str, 'director');
-
-/** HTML-escape a string. */
-function escHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/** XML-escape a string (same characters as HTML escape). */
-function escXML(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 /** Derive a stable channel id from a channel config object. */
 function deriveChannelId(ch) {

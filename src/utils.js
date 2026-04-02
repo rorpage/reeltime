@@ -27,4 +27,28 @@ function toSnakeCase(str, fallback = 'reeltime') {
   return result.length > 0 ? result : fallback;
 }
 
-module.exports = { toSnakeCase };
+/**
+ * HTML-escape a string.
+ * Uses `&#39;` for single quotes (safe in HTML attribute values).
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
+ * XML-escape a string.
+ * Uses `&apos;` for single quotes (valid XML entity).
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function escXML(s) {
+  return String(s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+}
+
+module.exports = { toSnakeCase, escHtml, escXML };
