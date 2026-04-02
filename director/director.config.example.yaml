@@ -1,0 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Reeltime Director — Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+director:
+  name: "Reeltime Director"   # display name shown in the UI
+  # port: 10000               # HTTP port (default 10000, overridden by PORT env var)
+
+channels:
+  - name: "Channel 1"
+    # id: "channel_1"         # optional; auto-derived from name in snake_case
+    url: "http://reeltime-1:8080"
+
+  - name: "Channel 2"
+    url: "http://reeltime-2:8080"
+
+  # Add more channels as needed:
+  # - name: "Channel 3"
+  #   url: "http://reeltime-3:8080"
