@@ -1,8 +1,8 @@
 services:
   reeltime:
     build:
-      context: ./reel
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: reel/Dockerfile
     container_name: reeltime
     restart: unless-stopped
 

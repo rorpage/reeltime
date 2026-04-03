@@ -49,7 +49,8 @@ services:
 
   reeltime-channel_1:
     build:
-      context: ./reel
+      context: .
+      dockerfile: reel/Dockerfile
     container_name: reeltime-channel_1
     restart: unless-stopped
     ports:
@@ -75,7 +76,8 @@ services:
 
   reeltime-channel_2:
     build:
-      context: ./reel
+      context: .
+      dockerfile: reel/Dockerfile
     container_name: reeltime-channel_2
     restart: unless-stopped
     ports:

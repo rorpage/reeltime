@@ -21,7 +21,7 @@ const fs                  = require('node:fs');
 const path                = require('node:path');
 const http                = require('node:http');
 const yaml                = require('js-yaml');
-const { toSnakeCase, escHtml, escXML } = require('./utils');
+const { toSnakeCase, escHtml, escXML } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
