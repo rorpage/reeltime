@@ -40,7 +40,11 @@ const CFG = {
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
   foreverPasses: +(process.env.PASSES_PER_CYCLE || 3),
-  debug:         process.env.DEBUG === '1',
+  // statePath is resolved after loadConfig() so it can incorporate channel_id.
+  // STATE_PATH env var overrides the derived default.
+  statePath:       process.env.STATE_PATH || null,
+  stateMaxAgeSec: +(process.env.STATE_MAX_AGE_SEC || 86400),
+  debug:           process.env.DEBUG === '1',
 };
 
 const [VW, VH] = CFG.resolution.split(':').map(Number);
@@ -329,17 +333,117 @@ const playState = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// State persistence  —  survive container restarts
+//
+// Every STATE_SAVE_INTERVAL_MS the current video index, pass, and playback
+// position are written atomically to a JSON file so the stream can resume
+// approximately where it left off after a restart.
+//
+// File location: STATE_PATH  (default: <config dir>/state.<channel_id>_reeltime.json)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const STATE_SAVE_INTERVAL_MS = 5000;
+
+let stateSaveInterval = null;
+
+/**
+ * Read and validate a previously saved state file.
+ * Returns { videoIndex, pass, positionSec } if the state is usable,
+ * or null if it is missing, corrupt, out-of-bounds, or too old.
+ *
+ * @param {object[]} videos  Full video list from config (used for bounds check)
+ */
+function loadState(videos) {
+  try {
+    if (!fs.existsSync(CFG.statePath)) return null;
+
+    const raw = JSON.parse(fs.readFileSync(CFG.statePath, 'utf8'));
+    const { videoIndex, pass, positionSec, savedAt } = raw;
+
+    if (typeof videoIndex !== 'number' || videoIndex < 0 || videoIndex >= videos.length) {
+      warn('State file has invalid videoIndex — starting from beginning');
+      return null;
+    }
+    if (typeof pass !== 'number' || pass < 0) {
+      warn('State file has invalid pass — starting from beginning');
+      return null;
+    }
+    if (typeof positionSec !== 'number' || positionSec < 0) {
+      warn('State file has invalid positionSec — starting from beginning');
+      return null;
+    }
+
+    if (!savedAt || typeof savedAt !== 'string' || isNaN(new Date(savedAt).getTime())) {
+      warn('State file has invalid savedAt — starting from beginning');
+      return null;
+    }
+
+    const ageMs = Date.now() - new Date(savedAt).getTime();
+    if (ageMs > CFG.stateMaxAgeSec * 1000) {
+      info(`State file is too old (${Math.round(ageMs / 3600000)} h) — starting from beginning`);
+      return null;
+    }
+
+    info(`Resuming from saved state: pass ${pass + 1}, video index ${videoIndex}, position ${positionSec.toFixed(1)}s`);
+    return { videoIndex, pass, positionSec };
+  } catch (e) {
+    warn(`Could not load state file: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Write the current playback position to STATE_PATH atomically.
+ * Uses a .tmp file + rename to avoid partial writes on container crash.
+ */
+function saveState() {
+  const entry = getCurrentEntry();
+  if (!entry) return;
+
+  const positionSec = Math.max(0, (Date.now() - entry.startAt) / 1000);
+  const payload = JSON.stringify({
+    videoIndex:  entry.videoIndex,
+    pass:        entry.pass,
+    positionSec: Math.round(positionSec * 10) / 10,
+    savedAt:     new Date().toISOString(),
+  });
+
+  const tmp = CFG.statePath + '.tmp';
+  try {
+    fs.writeFileSync(tmp, payload, 'utf8');
+    fs.renameSync(tmp, CFG.statePath);
+    debug(`State saved: video ${entry.videoIndex}, pass ${entry.pass}, pos ${positionSec.toFixed(1)}s`);
+  } catch (e) {
+    warn(`Could not save state: ${e.message}`);
+  }
+}
+
+/** Start the periodic state-save interval (idempotent). */
+function startStateSaving() {
+  if (stateSaveInterval) return;
+  stateSaveInterval = setInterval(saveState, STATE_SAVE_INTERVAL_MS);
+}
+
+/** Stop the periodic state-save interval. */
+function stopStateSaving() {
+  if (stateSaveInterval) {
+    clearInterval(stateSaveInterval);
+    stateSaveInterval = null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ffconcat FIFO writer
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildConcatEntry({ url, duration }) {
-  return (
-    `file '${url.replace(/'/g, '%27')}'\n` +
-    `outpoint ${duration}\n\n`
-  );
+function buildConcatEntry({ url, duration }, inpoint) {
+  let entry = `file '${url.replace(/'/g, '%27')}'\n`;
+  if (inpoint != null && inpoint > 0) entry += `inpoint ${inpoint}\n`;
+  entry += `outpoint ${duration}\n\n`;
+  return entry;
 }
 
-function writeFifo(videos, { loop, loopCount }) {
+function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
   return new Promise((resolve, reject) => {
     const forever = loop && loopCount <= 0;
     const totalPasses = loop
@@ -374,13 +478,36 @@ function writeFifo(videos, { loop, loopCount }) {
 
     async function runLoop() {
       await writeEntry('ffconcat version 1.0\n\n');
+
+      // ── Resume validation ────────────────────────────────────────────────────
+      if (resumeFrom) {
+        if (resumeFrom.pass >= totalPasses) {
+          warn(`Saved pass ${resumeFrom.pass} exceeds cycle size ${totalPasses} — starting from beginning`);
+          resumeFrom = null;
+        } else {
+          // Pre-set the logical clock so the first scheduled entry has a startAt
+          // in the "past" matching the saved position, keeping /now accurate.
+          schedNextStart = Date.now() - resumeFrom.positionSec * 1000;
+          info(`Resuming: pass ${resumeFrom.pass + 1}, video ${resumeFrom.videoIndex}, pos ${resumeFrom.positionSec.toFixed(1)}s`);
+        }
+      }
+
+      let resumeApplied = false;
+
       for (let pass = 0; pass < totalPasses; pass++) {
         if (abort.signal.aborted) break;
+
+        // Skip entire passes that precede the resume point
+        if (resumeFrom && pass < resumeFrom.pass) continue;
+
         const displayTotal = forever ? `∞ (prefill ${totalPasses})` : totalPasses;
         info(`── Pass ${pass + 1} / ${displayTotal} ${'─'.repeat(36)}`);
 
         outer: for (let i = 0; i < videos.length; i++) {
           if (abort.signal.aborted) break outer;
+
+          // Skip individual videos before the resume index (resume pass only)
+          if (resumeFrom && !resumeApplied && i < resumeFrom.videoIndex) continue;
 
           const video = videos[i];
 
@@ -392,8 +519,23 @@ function writeFifo(videos, { loop, loopCount }) {
 
           addToSchedule(video, i, pass);  // ← wall-clock schedule entry
 
-          info(`  ↳  "${video.title}"  (${video.duration} s)`);
-          await writeEntry(buildConcatEntry(video));
+          // For the very first entry when resuming, seek into the clip via inpoint.
+          // positionSec must be positive and less than the clip duration to be useful.
+          const inpoint = (resumeFrom && !resumeApplied && resumeFrom.positionSec > 0 && resumeFrom.positionSec < video.duration)
+            ? resumeFrom.positionSec
+            : undefined;
+          // Mark applied unconditionally so the resume logic is only evaluated once,
+          // even if inpoint was skipped (e.g. positionSec >= video.duration).
+          resumeApplied = true;
+
+          if (inpoint != null) {
+            info(`  ↳  "${video.title}"  (resuming at ${inpoint.toFixed(1)}s, ${(video.duration - inpoint).toFixed(0)}s remaining)`);
+          } else {
+            info(`  ↳  "${video.title}"  (${video.duration} s)`);
+          }
+
+          await writeEntry(buildConcatEntry(video, inpoint));
+          startStateSaving();  // no-op after first call
           if (abort.signal.aborted) break outer;
         }
       }
@@ -791,6 +933,8 @@ function startServer(cfg) {
 ['SIGTERM', 'SIGINT'].forEach(sig =>
   process.on(sig, () => {
     info(`${sig} — shutting down`);
+    saveState();
+    stopStateSaving();
     if (ffmpegProc) ffmpegProc.kill('SIGTERM');
     process.exit(0);
   })
@@ -814,6 +958,12 @@ process.on('uncaughtException', err => {
   const { name, channelId, icon, videos, loop, loopCount } = config;
   const forever = loop && loopCount <= 0;
 
+  // Resolve state file path now that channel_id is known.
+  if (!CFG.statePath) {
+    CFG.statePath = path.join(path.dirname(CFG.configPath), `state.${channelId}_reeltime.json`);
+  }
+  info(`State file: ${CFG.statePath}`);
+
   info(`Stream    : "${name}"  (channel: ${channelId})`);
   if (icon) info(`Icon      : ${icon}`);
   info(`Loop      : ${!loop ? 'play once' : forever ? `infinite (prefill=${CFG.foreverPasses} passes)` : `${loopCount}×`}`);
@@ -834,6 +984,9 @@ process.on('uncaughtException', err => {
   const sleep = ms => new Promise(res => setTimeout(res, ms));
   let cycle = 0;
 
+  // Load saved state once; applied only to the first writeFifo call.
+  let resumeState = loadState(videos);
+
   while (true) {
     cycle++;
     if (autoRollover) info(`Starting rollover cycle ${cycle}`);
@@ -844,8 +997,9 @@ process.on('uncaughtException', err => {
     //   Node.js writes first entry →  ffmpeg starts decoding
     const [ffmpegCode] = await Promise.all([
       startFFmpeg(),
-      writeFifo(videos, { loop, loopCount }),
+      writeFifo(videos, { loop, loopCount }, resumeState),
     ]);
+    resumeState = null;  // resume only on the first cycle
 
     if (ffmpegCode !== 0 && autoRollover) {
       warn(`Rollover cycle ${cycle} failed (ffmpeg exit ${ffmpegCode}) — retrying in ${RETRY_DELAY_MS} ms`);
