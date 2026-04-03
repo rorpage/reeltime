@@ -22,7 +22,7 @@ const fs    = require('node:fs');
 const path  = require('node:path');
 const url   = require('node:url');
 const yaml  = require('js-yaml');
-const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../src/utils');
+const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../actor/src/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -49,7 +49,7 @@ const error = (...a) => console.error(`${ts()} ERROR`, ...a);
 
 /**
  * Convert a string to snake_case, falling back to 'director' when empty.
- * Delegates to the shared implementation in src/utils.js.
+ * Delegates to the shared implementation in actor/src/utils.js.
  */
 const toSnakeCase = str => _toSnakeCase(str, 'director');
 
@@ -207,8 +207,7 @@ function generateCompose(directorConfigPath) {
       '',
       `  reeltime-${ch.id}:`,
       '    build:',
-      '      context: .',
-      '      dockerfile: Dockerfile',
+      '      context: ./actor',
       `    container_name: reeltime-${ch.id}`,
       '    restart: unless-stopped',
       '    ports:',
