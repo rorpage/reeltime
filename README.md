@@ -24,11 +24,12 @@ Notes:
 
 ## Quick Start (Docker Compose)
 
-1. Copy the sample config:
+1. Copy the sample config into a `config/` directory:
 
-	cp config.example.yaml config.yaml
+	mkdir -p config
+	cp config.example.yaml config/config.yaml
 
-2. Edit config.yaml with your video URLs and durations.
+2. Edit config/config.yaml with your video URLs and durations.
 
 3. Start the service:
 
@@ -109,6 +110,8 @@ For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reel
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
 - PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
+- STATE_PATH (default `<config dir>/state.<channel_id>_reeltime.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
+- STATE_MAX_AGE_SEC (default 86400, maximum age in seconds of a state file before it is ignored on startup; streams down longer than this restart from the beginning)
 - DEBUG (set to 1 for verbose logs)
 
 ## HTTP Endpoints
@@ -133,16 +136,34 @@ Use these URLs:
 The generated M3U includes x-tvg-url pointing to /xmltv to simplify setup.
 If a stream icon is configured, the generated M3U also includes `tvg-logo`.
 
+## Restart-Resume
+
+Reeltime writes a JSON state file every 5 seconds recording the current video index, loop pass, and playback position. If the container restarts, it reads this file and resumes from approximately the same point.
+
+State file location: `<config dir>/state.<channel_id>_reeltime.json` (e.g. `/config/state.my_channel_reeltime.json`). The name is derived from the `channel_id` field in your `config.yaml` (which itself defaults to a snake_case version of `stream.name`). This means:
+
+- Multiple containers sharing the same config directory each write their own state file automatically, as long as each config file has a distinct `channel_id` (or `stream.name`).
+- A container reused with a different config file gets a fresh state file automatically, since the `channel_id` will differ.
+- To override the path entirely, set `STATE_PATH` explicitly.
+
+The state file is ignored and playback starts from the beginning if:
+
+- The file is missing or unparseable.
+- `videoIndex` is out of bounds (playlist has changed).
+- The file is older than `STATE_MAX_AGE_SEC` seconds (default 24 hours).
+
+The state file is written alongside the config file inside the container. With the default `docker compose` setup (directory bind mount `./config:/config`), the state file survives both `docker restart` / crash-recovery restarts and full container recreation (`docker compose down && up`).
+
 ## Docker
 
 Build and run directly:
 
 docker build -t reeltime .
-docker run -p 8080:8080 -v $(pwd)/config.yaml:/config/config.yaml:ro reeltime
+docker run -p 8080:8080 -v $(pwd)/config:/config reeltime
 
 On Windows PowerShell:
 
-docker run -p 8080:8080 -v ${PWD}/config.yaml:/config/config.yaml:ro reeltime
+docker run -p 8080:8080 -v ${PWD}/config:/config reeltime
 
 ## Development Notes
 

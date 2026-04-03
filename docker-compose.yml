@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   reeltime:
     build:
@@ -12,7 +10,12 @@ services:
       - "${HOST_PORT:-8080}:8080"
 
     volumes:
-      - ./config.yaml:/config/config.yaml:ro
+      # Mount the entire config directory so that Reeltime can read config.yaml
+      # and write the playback state file (state.<channel_id>_reeltime.json) alongside it.
+      # This ensures the state survives container recreation
+      # (docker compose down && up) and not just restarts.
+      # Put your config.yaml file(s) inside the ./config/ directory.
+      - ./config:/config
 
     environment:
       PORT:             "8080"
