@@ -11,8 +11,8 @@
 # Usage:
 #   1. Copy config files:
 #        cp director/director.config.example.yaml director.config.yaml
-#        cp actor/config.example.yaml channel1.config.yaml
-#        cp actor/config.example.yaml channel2.config.yaml
+#        cp reel/config.example.yaml channel1.config.yaml
+#        cp reel/config.example.yaml channel2.config.yaml
 #   2. Edit each config to taste (stream.name in each channel config is how
 #      Director names and identifies that channel).
 #   3. Generate the compose file:
@@ -49,7 +49,7 @@ services:
 
   reeltime-channel_1:
     build:
-      context: ./actor
+      context: ./reel
     container_name: reeltime-channel_1
     restart: unless-stopped
     ports:
@@ -75,7 +75,7 @@ services:
 
   reeltime-channel_2:
     build:
-      context: ./actor
+      context: ./reel
     container_name: reeltime-channel_2
     restart: unless-stopped
     ports:

@@ -27,7 +27,7 @@ Notes:
 1. Copy the sample config into a `config/` directory:
 
 	mkdir -p config
-	cp actor/config.example.yaml config/config.yaml
+	cp reel/config.example.yaml config/config.yaml
 
 2. Edit config/config.yaml with your video URLs and durations.
 
@@ -49,7 +49,7 @@ Notes:
 
 2. Copy config and edit it:
 
-	cp actor/config.example.yaml config.yaml
+	cp reel/config.example.yaml config.yaml
 
 3. Set environment variables (optional) and start:
 
@@ -85,7 +85,7 @@ videos:
 - description: optional XMLTV description
 - category: optional XMLTV category
 
-See full example in actor/config.example.yaml.
+See full example in reel/config.example.yaml.
 
 If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output. If `icon` is set on the stream, Reeltime emits it both as XMLTV channel artwork and as the M3U `tvg-logo` value. If `icon` is set on a video, it is emitted as XMLTV programme artwork.
 
@@ -158,7 +158,7 @@ The state file is written alongside the config file inside the container. With t
 
 Build and run directly:
 
-docker build -t reeltime ./actor
+docker build -t reeltime ./reel
 docker run -p 8080:8080 -v $(pwd)/config:/config reeltime
 
 On Windows PowerShell:
