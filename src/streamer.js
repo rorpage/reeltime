@@ -39,12 +39,9 @@ const CFG = {
   framerate:   +(process.env.FRAMERATE        || 30),
   threads:     +(process.env.FFMPEG_THREADS   || 0),
   foreverPasses: +(process.env.PASSES_PER_CYCLE || 3),
-  containerName:   process.env.CONTAINER_NAME || 'reeltime',
-  statePath:       process.env.STATE_PATH || (() => {
-                     const cfgPath = process.env.CONFIG_PATH || '/config/config.yaml';
-                     const name    = process.env.CONTAINER_NAME || 'reeltime';
-                     return path.join(path.dirname(cfgPath), `state.${name}.json`);
-                   })(),
+  // statePath is resolved after loadConfig() so it can incorporate channel_id.
+  // STATE_PATH env var overrides the derived default.
+  statePath:       process.env.STATE_PATH || null,
   stateMaxAgeSec: +(process.env.STATE_MAX_AGE_SEC || 86400),
   debug:           process.env.DEBUG === '1',
 };
@@ -359,7 +356,7 @@ const playState = {
 // position are written atomically to a JSON file so the stream can resume
 // approximately where it left off after a restart.
 //
-// File location: STATE_PATH  (default: <config dir>/state.<CONTAINER_NAME>.json)
+// File location: STATE_PATH  (default: <config dir>/state.<channel_id>_reeltime.json)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_SAVE_INTERVAL_MS = 5000;
@@ -982,6 +979,12 @@ process.on('uncaughtException', err => {
   const config  = loadConfig();
   const { name, channelId, icon, videos, loop, loopCount } = config;
   const forever = loop && loopCount <= 0;
+
+  // Resolve state file path now that channel_id is known.
+  if (!CFG.statePath) {
+    CFG.statePath = path.join(path.dirname(CFG.configPath), `state.${channelId}_reeltime.json`);
+  }
+  info(`State file: ${CFG.statePath}`);
 
   info(`Stream    : "${name}"  (channel: ${channelId})`);
   if (icon) info(`Icon      : ${icon}`);

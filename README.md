@@ -110,8 +110,7 @@ For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reel
 - FRAMERATE (default 30)
 - FFMPEG_THREADS (default 0, auto)
 - PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
-- CONTAINER_NAME (default `reeltime`, used to name the state file `state.<CONTAINER_NAME>.json`; set this to match the `container_name` in your docker-compose.yml so the file is stable across restarts)
-- STATE_PATH (default `<config dir>/state.<CONTAINER_NAME>.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
+- STATE_PATH (default `<config dir>/state.<channel_id>_reeltime.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
 - STATE_MAX_AGE_SEC (default 86400, maximum age in seconds of a state file before it is ignored on startup; streams down longer than this restart from the beginning)
 - DEBUG (set to 1 for verbose logs)
 
@@ -141,10 +140,11 @@ If a stream icon is configured, the generated M3U also includes `tvg-logo`.
 
 Reeltime writes a JSON state file every 5 seconds recording the current video index, loop pass, and playback position. If the container restarts, it reads this file and resumes from approximately the same point.
 
-State file location: `<config dir>/state.<CONTAINER_NAME>.json` (e.g. `/config/state.reeltime.json`). The name is derived from the `CONTAINER_NAME` env var, which should match the `container_name` field in your `docker-compose.yml`. This means:
+State file location: `<config dir>/state.<channel_id>_reeltime.json` (e.g. `/config/state.my_channel_reeltime.json`). The name is derived from the `channel_id` field in your `config.yaml` (which itself defaults to a snake_case version of `stream.name`). This means:
 
-- Multiple containers sharing the same config directory each write their own state file as long as their `container_name` (and thus `CONTAINER_NAME`) values differ.
-- A container reused with a different config file still picks up the same state file — if this is undesired, change the `container_name` / `CONTAINER_NAME` or set `STATE_PATH` explicitly.
+- Multiple containers sharing the same config directory each write their own state file automatically, as long as each config file has a distinct `channel_id` (or `stream.name`).
+- A container reused with a different config file gets a fresh state file automatically, since the `channel_id` will differ.
+- To override the path entirely, set `STATE_PATH` explicitly.
 
 The state file is ignored and playback starts from the beginning if:
 
