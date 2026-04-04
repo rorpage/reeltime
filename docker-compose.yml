@@ -1,4 +1,63 @@
 services:
+
+  # ── WS4Channels — WeatherStar 4000 HLS streamer ─────────────────────────────
+  # Captures the WS4KP weather display via Puppeteer and serves it as a live
+  # HLS channel compatible with Channels DVR, Jellyfin, Plex, and Emby.
+  #
+  # Prerequisites:
+  #   A running WS4KP instance (https://github.com/netbymatt/ws4kp) with
+  #   widescreen mode:  WSQS_settings_wide_checkbox=true
+  #
+  # M3U:    http://localhost:9798/channels.m3u
+  # XMLTV:  http://localhost:9798/xmltv
+  # Health: http://localhost:9798/health
+  ws4channels:
+    build:
+      context: ws4channels
+      dockerfile: Dockerfile
+    container_name: ws4channels
+    restart: unless-stopped
+
+    ports:
+      - "${WS4KP_HOST_PORT:-9798}:9798"
+
+    volumes:
+      # Optional: mount MP3 files for background music
+      # - ./music:/music:ro
+      # Optional: mount logo PNG files
+      # - ./logo:/logo:ro
+
+    environment:
+      PORT:            "9798"
+      ZIP_CODE:        "${ZIP_CODE:-90210}"
+      WS4KP_HOST:      "${WS4KP_HOST:-localhost}"
+      WS4KP_PORT:      "${WS4KP_PORT:-8080}"
+      FRAME_RATE:      "${FRAME_RATE:-10}"
+      RESOLUTION:      "${RESOLUTION:-1280:720}"
+      VIDEO_BITRATE:   "${VIDEO_BITRATE:-1000k}"
+      AUDIO_BITRATE:   "${AUDIO_BITRATE:-128k}"
+      MUSIC_VOLUME:    "${MUSIC_VOLUME:-0.5}"
+      SHUFFLE_MUSIC:   "${SHUFFLE_MUSIC:-false}"
+      HLS_SEG:         "${HLS_SEG:-2}"
+      HLS_SIZE:        "${HLS_SIZE:-5}"
+      CHANNEL_ID:      "${CHANNEL_ID:-weatherstar4000}"
+      CHANNEL_NAME:    "${CHANNEL_NAME:-WeatherStar 4000}"
+      CHANNEL_NUMBER:  "${CHANNEL_NUMBER:-275}"
+
+    deploy:
+      resources:
+        limits:
+          cpus:   "${WS4KP_MAX_CPU:-1.0}"
+          memory: "${WS4KP_MAX_MEM:-1096M}"
+
+    healthcheck:
+      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9798/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 60s
+      retries:      3
+
+  # ── Reeltime — playlist-driven HLS streamer ──────────────────────────────────
   reeltime:
     build:
       context: .

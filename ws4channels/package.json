@@ -1,0 +1,16 @@
+{
+  "name": "ws4channels",
+  "version": "1.0.0",
+  "description": "WeatherStar 4000 HLS streamer for Channels DVR / Jellyfin / Plex",
+  "main": "src/streamer.js",
+  "scripts": {
+    "start": "node src/streamer.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "Unlicense"
+}
