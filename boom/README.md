@@ -1,4 +1,4 @@
-# WS4Channels
+# Boom
 
 A Dockerized companion service for [Reeltime](https://github.com/rorpage/reeltime)
 that streams the [WeatherStar 4000 Plus (WS4KP)](https://github.com/netbymatt/ws4kp)
@@ -35,18 +35,18 @@ docker run -d \
 
 ```bash
 # Copy and edit the environment file
-cp ws4channels/.env.example .env
+cp boom/.env.example .env
 
 # Edit .env — set WS4KP_HOST and ZIP_CODE at minimum
 # Then start the stack
-docker compose up -d ws4channels
+docker compose up -d boom
 ```
 
 ## Manual run
 
 ```bash
 docker run -d \
-  --name ws4channels \
+  --name boom \
   --restart unless-stopped \
   --memory="1096m" \
   --cpus="1.0" \
@@ -54,7 +54,7 @@ docker run -d \
   -e ZIP_CODE=63101 \
   -e WS4KP_HOST=192.168.1.100 \
   -e WS4KP_PORT=8080 \
-  ghcr.io/rorpage/reeltime-ws4channels:latest
+  ghcr.io/rorpage/reeltime-boom:latest
 ```
 
 ## Endpoints

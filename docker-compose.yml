@@ -53,7 +53,7 @@ services:
       start_period: 120s
       retries:      3
 
-  # ── WS4Channels — WeatherStar 4000 HLS streamer ─────────────────────────────
+  # ── Boom — WeatherStar 4000 HLS streamer ─────────────────────────────────────
   # Captures the WS4KP weather display via Puppeteer and serves it as a live
   # HLS channel compatible with Channels DVR, Jellyfin, Plex, and Emby.
   #
@@ -64,15 +64,15 @@ services:
   # M3U:    http://localhost:9798/channels.m3u
   # XMLTV:  http://localhost:9798/xmltv
   # Health: http://localhost:9798/health
-  ws4channels:
+  boom:
     build:
-      context: ws4channels
+      context: boom
       dockerfile: Dockerfile
-    container_name: ws4channels
+    container_name: boom
     restart: unless-stopped
 
     ports:
-      - "${WS4CHANNELS_HOST_PORT:-9798}:9798"
+      - "${BOOM_HOST_PORT:-9798}:9798"
 
     volumes:
       # Optional: mount MP3 files for background music
@@ -100,8 +100,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus:   "${WS4CHANNELS_MAX_CPU:-1.0}"
-          memory: "${WS4CHANNELS_MAX_MEM:-1096M}"
+          cpus:   "${BOOM_MAX_CPU:-1.0}"
+          memory: "${BOOM_MAX_MEM:-1096M}"
 
     healthcheck:
       test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9798/health"]

@@ -445,7 +445,7 @@ function serve(req, res) {
 const server = http.createServer(serve);
 
 server.listen(CFG.port, async () => {
-  info(`ws4channels listening on port ${CFG.port}`);
+  info(`boom listening on port ${CFG.port}`);
   info(`WS4KP: ${WS4KP_URL}  ZIP: ${CFG.zipCode}`);
   await start();
 });

@@ -1,15 +1,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# WS4Channels — WeatherStar 4000 HLS Streamer
+# Boom — WeatherStar 4000 HLS Streamer
 #
 # Requires a running WS4KP instance (https://github.com/netbymatt/ws4kp)
 # with the widescreen flag set:  WSQS_settings_wide_checkbox=true
 #
-# Build:  docker build -t ws4channels ws4channels/
+# Build:  docker build -t boom boom/
 # Run:    docker run -p 9798:9798 \
 #           -e ZIP_CODE=63101 \
 #           -e WS4KP_HOST=192.168.1.100 \
 #           -e WS4KP_PORT=8080 \
-#           ws4channels
+#           boom
 #
 # M3U:    http://localhost:9798/channels.m3u
 # XMLTV:  http://localhost:9798/xmltv
