@@ -82,6 +82,7 @@ let ffmpegProc   = null;
 let browser      = null;
 let page         = null;
 let captureTimer = null;
+let readyTimer   = null;
 let isReady      = false;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,7 +232,7 @@ async function initBrowser() {
       await waitMs(500);
       const btn = await page.$('button[type="submit"]');
       if (btn) await btn.click();
-      else     await input.press('Enter');
+      else   { await input.press('Enter'); await waitMs(500); }
       await page.waitForSelector('div.weather-display, #weather-content', { timeout: 30_000 });
     }
   } catch {
@@ -313,7 +314,8 @@ function startFfmpeg(hasAudio) {
   });
 
   // Allow time for at least two HLS segments to be written before marking ready
-  setTimeout(() => { isReady = true; info('Stream ready'); }, CFG.hlsSeg * 2_000);
+  if (readyTimer) clearTimeout(readyTimer);
+  readyTimer = setTimeout(() => { readyTimer = null; isReady = true; info('Stream ready'); }, CFG.hlsSeg * 2_000);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -327,7 +329,7 @@ function startCapture() {
   captureTimer = setInterval(async () => {
     if (!ffmpegProc || !page) return;
     try {
-      if (page.isClosed()) { await initBrowser().catch(() => {}); return; }
+      if (page.isClosed()) { await initBrowser().catch(e => warn('Browser restart failed:', e.message)); return; }
       const jpeg = await page.screenshot({
         type: 'jpeg',
         quality: 80,
@@ -336,7 +338,7 @@ function startCapture() {
       if (ffmpegProc?.stdin?.writable) ffmpegProc.stdin.write(jpeg);
     } catch (err) {
       warn('Capture error:', err.message);
-      await initBrowser().catch(() => {});
+      await initBrowser().catch(e => warn('Browser restart failed:', e.message));
     }
   }, intervalMs);
 }
@@ -359,8 +361,15 @@ async function start() {
 async function stop() {
   info('Shutting down…');
   if (captureTimer) { clearInterval(captureTimer); captureTimer = null; }
-  if (ffmpegProc)   { try { ffmpegProc.stdin.destroy(); } catch {} ffmpegProc.kill('SIGINT'); ffmpegProc = null; }
-  if (browser)      { await browser.close().catch(() => {}); browser = null; }
+  if (readyTimer)   { clearTimeout(readyTimer);    readyTimer   = null; }
+  if (ffmpegProc) {
+    // Destroying stdin signals EOF to ffmpeg; follow with SIGTERM for clean HLS flush
+    try { ffmpegProc.stdin.destroy(); } catch {}
+    await waitMs(500);
+    if (ffmpegProc) ffmpegProc.kill('SIGTERM');
+    ffmpegProc = null;
+  }
+  if (browser) { await browser.close().catch(() => {}); browser = null; }
   isReady = false;
 }
 

@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
     ports:
-      - "${WS4KP_HOST_PORT:-9798}:9798"
+      - "${WS4CHANNELS_HOST_PORT:-9798}:9798"
 
     volumes:
       # Optional: mount MP3 files for background music
@@ -47,8 +47,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus:   "${WS4KP_MAX_CPU:-1.0}"
-          memory: "${WS4KP_MAX_MEM:-1096M}"
+          cpus:   "${WS4CHANNELS_MAX_CPU:-1.0}"
+          memory: "${WS4CHANNELS_MAX_MEM:-1096M}"
 
     healthcheck:
       test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9798/health"]
