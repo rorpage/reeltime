@@ -1,5 +1,58 @@
 services:
 
+  # ── Scout — generic web-page HLS streamer ────────────────────────────────────
+  # Captures any URL via Puppeteer and serves it as a live HLS channel.
+  # Exposes the same endpoint set as Reeltime.
+  #
+  # Required: set CAPTURE_URL (or define it in .env)
+  #
+  # Player: http://localhost:8080/
+  # Tuner:  http://localhost:8080/channels.m3u
+  # Guide:  http://localhost:8080/xmltv
+  # Health: http://localhost:8080/health
+  scout:
+    build:
+      context: scout
+      dockerfile: Dockerfile
+    container_name: scout
+    restart: unless-stopped
+
+    ports:
+      - "${SCOUT_HOST_PORT:-8080}:8080"
+
+    environment:
+      PORT:           "8080"
+      CAPTURE_URL:    "${CAPTURE_URL}"
+      CHANNEL_ID:     "${CHANNEL_ID:-scout}"
+      CHANNEL_NAME:   "${CHANNEL_NAME:-Scout}"
+      CHANNEL_NUMBER: "${CHANNEL_NUMBER:-1}"
+      CHANNEL_ICON:   "${CHANNEL_ICON:-}"
+      FRAME_RATE:     "${FRAME_RATE:-1}"
+      RESOLUTION:     "${RESOLUTION:-1280:720}"
+      VIDEO_BITRATE:  "${VIDEO_BITRATE:-1000k}"
+      AUDIO_BITRATE:  "${AUDIO_BITRATE:-128k}"
+      HLS_SEG:        "${HLS_SEG:-6}"
+      HLS_SIZE:       "${HLS_SIZE:-10}"
+      WAIT_UNTIL:     "${WAIT_UNTIL:-networkidle2}"
+      # CROP_X:       "${CROP_X}"
+      # CROP_Y:       "${CROP_Y}"
+      # CROP_WIDTH:   "${CROP_WIDTH}"
+      # CROP_HEIGHT:  "${CROP_HEIGHT}"
+      # DEBUG:        "1"
+
+    deploy:
+      resources:
+        limits:
+          cpus:   "${SCOUT_MAX_CPU:-1.0}"
+          memory: "${SCOUT_MAX_MEM:-1G}"
+
+    healthcheck:
+      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 120s
+      retries:      3
+
   # ── WS4Channels — WeatherStar 4000 HLS streamer ─────────────────────────────
   # Captures the WS4KP weather display via Puppeteer and serves it as a live
   # HLS channel compatible with Channels DVR, Jellyfin, Plex, and Emby.
