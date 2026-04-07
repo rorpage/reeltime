@@ -240,15 +240,16 @@ function generateCompose(directorConfigPath) {
 /**
  * Build an aggregated M3U playlist for all channels.
  * @param {Array}  channels
- * @param {string} host  — request Host header value
+ * @param {string} host  — request Host header value (e.g. "192.168.1.5:9999")
  * @returns {string}
  */
 function buildAggregatedM3U(channels, host) {
+  const hostname = host.split(':')[0];
   const lines = [`#EXTM3U x-tvg-url="http://${host}/xmltv"`];
   for (const ch of channels) {
     lines.push(
       `#EXTINF:-1 tvg-id="${escHtml(ch.id)}" tvg-name="${escHtml(ch.name)}",${escHtml(ch.name)}`,
-      `${ch.url}/stream.m3u8`,
+      `http://${hostname}:${ch.port}/stream.m3u8`,
     );
   }
   return lines.join('\n') + '\n';
@@ -259,22 +260,27 @@ function buildAggregatedM3U(channels, host) {
  * @param {string} directorName
  * @param {Array}  channels
  * @param {Map}    channelCache
+ * @param {string} [hostname]  Director hostname visible to the browser (for stream URLs)
  * @returns {{ name: string, channels: Array }}
  */
-function buildAggregatedNow(directorName, channels, channelCache) {
+function buildAggregatedNow(directorName, channels, channelCache, hostname) {
   return {
     name: directorName,
     channels: channels.map(ch => {
       const cached = channelCache.get(ch.id) || {};
-      return {
+      const entry = {
         id:         ch.id,
         name:       ch.name,
         channelNum: ch.channelNum,
         port:       ch.port,
         url:        ch.url,
+        stream:     hostname
+          ? `http://${hostname}:${ch.port}/stream.m3u8`
+          : `${ch.url}/stream.m3u8`,
         now:        cached.now    ?? null,
         online:     cached.online ?? false,
       };
+      return entry;
     }),
   };
 }
@@ -635,7 +641,8 @@ function createRequestHandler(directorName, channels, channelCache) {
 
     // GET /now
     if (req.method === 'GET' && pathname === '/now') {
-      const body = JSON.stringify(buildAggregatedNow(directorName, channels, channelCache));
+      const hostname = host.split(':')[0];
+      const body = JSON.stringify(buildAggregatedNow(directorName, channels, channelCache, hostname));
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(body);
     }

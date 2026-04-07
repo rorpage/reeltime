@@ -399,8 +399,8 @@ test('buildAggregatedM3U — contains tvg-url pointing to /xmltv', () => {
 
 test('buildAggregatedM3U — contains correct stream URLs', () => {
   const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.includes('http://reeltime-channel_1:8080/stream.m3u8'));
-  assert.ok(m3u.includes('http://reeltime-channel_2:8080/stream.m3u8'));
+  assert.ok(m3u.includes('http://localhost:10001/stream.m3u8'));
+  assert.ok(m3u.includes('http://localhost:10002/stream.m3u8'));
 });
 
 test('buildAggregatedM3U — contains channel names in EXTINF lines', () => {
@@ -508,13 +508,14 @@ test('buildAggregatedNow — online channel has correct data', () => {
   cache.set('channel_1', { online: true, now: { title: 'Movie A', progress: 0.5 } });
   cache.set('channel_2', { online: false });
 
-  const result = buildAggregatedNow('My Director', sampleChannels, cache);
+  const result = buildAggregatedNow('My Director', sampleChannels, cache, '192.168.1.5');
   const ch1 = result.channels.find(c => c.id === 'channel_1');
   assert.ok(ch1);
   assert.equal(ch1.online, true);
   assert.equal(ch1.now.title, 'Movie A');
   assert.equal(ch1.name, 'Channel 1');
-  assert.equal(ch1.url,  'http://reeltime-channel_1:8080');
+  assert.equal(ch1.url,    'http://reeltime-channel_1:8080');
+  assert.equal(ch1.stream, 'http://192.168.1.5:10001/stream.m3u8');
   assert.equal(ch1.channelNum, 1);
   assert.equal(ch1.port, 10001);
 });
