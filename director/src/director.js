@@ -172,7 +172,7 @@ function generateCompose(directorConfigPath) {
     '    container_name: reeltime-director',
     '    restart: unless-stopped',
     '    ports:',
-    `      - "${cfg.port}:10000"`,
+    `      - "${cfg.port}:${DEFAULT_PORT}"`,
     '    volumes:',
     `      - ${dirCfgRel}:/config/${dirCfgBase}:ro`,
   );
@@ -185,7 +185,7 @@ function generateCompose(directorConfigPath) {
 
   lines.push(
     '    environment:',
-    `      PORT:            "10000"`,
+    `      PORT:            "${DEFAULT_PORT}"`,
     `      DIRECTOR_CONFIG: "/config/${dirCfgBase}"`,
     '    depends_on:',
   );
@@ -193,7 +193,7 @@ function generateCompose(directorConfigPath) {
 
   lines.push(
     '    healthcheck:',
-    `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:10000/health"]`,
+    `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:${DEFAULT_PORT}/health"]`,
     '      interval:     30s',
     '      timeout:      10s',
     '      start_period: 30s',
