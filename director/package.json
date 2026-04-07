@@ -7,7 +7,7 @@
     "start":    "node src/director.js",
     "dev":      "node --watch src/director.js",
     "test":     "node --test src/director.test.js",
-    "generate": "node src/director.js generate"
+    "generate": "node src/director.js generate ../director.config.yaml"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

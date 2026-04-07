@@ -36,7 +36,7 @@ cp config.example.yaml channel2.config.yaml
 #    (see Configuration section below)
 
 # 4. Generate the compose file
-node director/src/director.js generate > docker-compose.director.yml
+node director/src/director.js generate director.config.yaml > docker-compose.director.yml
 
 # 5. Start the stack
 docker compose -f docker-compose.director.yml up --build
@@ -100,11 +100,11 @@ configs:
 After editing `director.config.yaml`, regenerate `docker-compose.director.yml` whenever you add, remove, or rename channels:
 
 ```bash
-# From the project root:
-node director/src/director.js generate > docker-compose.director.yml
+# From the project root (config at project root):
+node director/src/director.js generate director.config.yaml > docker-compose.director.yml
 
 # Or using the npm script (from inside director/):
-DIRECTOR_CONFIG=../director.config.yaml npm run generate > ../docker-compose.director.yml
+npm run generate > ../docker-compose.director.yml
 ```
 
 The generated file includes:
@@ -167,7 +167,7 @@ The generated file includes:
    ```
 3. Regenerate the compose file:
    ```bash
-   node director/src/director.js generate > docker-compose.director.yml
+   node director/src/director.js generate director.config.yaml > docker-compose.director.yml
    ```
 4. Restart the stack:
    ```bash
