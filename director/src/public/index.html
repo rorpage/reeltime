@@ -164,9 +164,8 @@
           var now    = ch.now    || null;
 
           if (!online) {
-            var chNum = ch.channelNum != null ? ch.channelNum : (i + 1);
             return '<div class="card offline">' +
-              '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + chNum + '</span> ' + esc(ch.name) + '</div>' +
+              '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
               '<div class="offline-badge">&#9679; OFFLINE</div>' +
               '</div>';
           }
@@ -175,10 +174,9 @@
           var progress = now && now.progress != null ? Math.round(now.progress * 100) : 0;
           var rem      = now && now.remaining != null ? Math.ceil(now.remaining / 60) : 0;
           var next     = now && now.next     ? esc(now.next)     : '&mdash;';
-          var chNum    = ch.channelNum != null ? ch.channelNum : (i + 1);
 
           return '<div class="card">' +
-            '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + chNum + '</span> ' + esc(ch.name) + '</div>' +
+            '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
             '<div class="card-title">' + title + '</div>' +
             '<div class="progress-wrap">' +
               '<div class="progress-bar" style="width:' + progress + '%;background:' + neon + '"></div>' +
