@@ -185,7 +185,7 @@ function generateCompose(directorConfigPath) {
 
   lines.push(
     '    environment:',
-    `      PORT:            "${cfg.port}"`,
+    `      PORT:            "10000"`,
     `      DIRECTOR_CONFIG: "/config/${dirCfgBase}"`,
     '    depends_on:',
   );
@@ -193,7 +193,7 @@ function generateCompose(directorConfigPath) {
 
   lines.push(
     '    healthcheck:',
-    `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:${cfg.port}/health"]`,
+    `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:10000/health"]`,
     '      interval:     30s',
     '      timeout:      10s',
     '      start_period: 30s',
