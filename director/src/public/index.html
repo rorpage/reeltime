@@ -141,15 +141,7 @@
       }
 
       function updateClock() {
-        var now = new Date();
-        var p = function (n) { return String(n).padStart(2, '0'); };
-        document.getElementById('clock').textContent =
-          now.getUTCFullYear() + '-' +
-          p(now.getUTCMonth() + 1) + '-' +
-          p(now.getUTCDate()) + ' ' +
-          p(now.getUTCHours()) + ':' +
-          p(now.getUTCMinutes()) + ':' +
-          p(now.getUTCSeconds()) + ' UTC';
+        document.getElementById('clock').textContent = new Date().toLocaleString();
       }
 
       function renderCards(data) {

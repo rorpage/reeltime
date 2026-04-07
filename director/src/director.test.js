@@ -378,6 +378,15 @@ test('generateCompose — contains depends_on for each channel', () => {
   assert.ok(out.includes('- reeltime-channel_2'));
 });
 
+test('generateCompose — adds state volume and STATE_PATH for each channel', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+  assert.ok(out.includes('./state/reeltime-channel_1:/state'));
+  assert.ok(out.includes('./state/reeltime-channel_2:/state'));
+  assert.ok(out.includes('STATE_PATH:       "/state/reeltime.json"'));
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. buildAggregatedM3U
 // ─────────────────────────────────────────────────────────────────────────────
