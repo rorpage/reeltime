@@ -273,7 +273,6 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
         name:       ch.name,
         channelNum: ch.channelNum,
         port:       ch.port,
-        url:        ch.url,
         stream:     hostname
           ? `http://${hostname}:${ch.port}/stream.m3u8`
           : `${ch.url}/stream.m3u8`,
@@ -300,7 +299,6 @@ function buildHealthResponse(channels, channelCache) {
       return {
         id:     ch.id,
         name:   ch.name,
-        url:    ch.url,
         online: cached.online ?? false,
       };
     }),

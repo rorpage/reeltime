@@ -514,7 +514,6 @@ test('buildAggregatedNow — online channel has correct data', () => {
   assert.equal(ch1.online, true);
   assert.equal(ch1.now.title, 'Movie A');
   assert.equal(ch1.name, 'Channel 1');
-  assert.equal(ch1.url,    'http://reeltime-channel_1:8080');
   assert.equal(ch1.stream, 'http://192.168.1.5:10001/stream.m3u8');
   assert.equal(ch1.channelNum, 1);
   assert.equal(ch1.port, 10001);
@@ -567,7 +566,6 @@ test('buildHealthResponse — includes channels array with correct shape', () =>
   assert.ok(ch1);
   assert.equal(ch1.online, true);
   assert.equal(ch1.name, 'Channel 1');
-  assert.equal(ch1.url,  'http://reeltime-channel_1:8080');
 
   const ch2 = result.channels.find(c => c.id === 'channel_2');
   assert.equal(ch2.online, false);
