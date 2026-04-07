@@ -29,7 +29,7 @@ const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../shared/uti
 // ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS   = 10_000;
-const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78', '#ff9d00', '#bf00ff', '#ff5f00', '#00ff9f', '#fff700'];
+const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');

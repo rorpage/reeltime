@@ -129,7 +129,7 @@
 
   <script>
     (function () {
-      var NEON = ['#00d4ff', '#39ff14', '#ff2d78', '#ff9d00', '#bf00ff', '#ff5f00', '#00ff9f', '#fff700'];
+      var NEON = ['#00d4ff', '#39ff14', '#ff2d78'];
 
       function esc(s) {
         return String(s)
@@ -159,13 +159,12 @@
         }
 
         var html = (data.channels || []).map(function (ch, i) {
-          var neon   = NEON[i % NEON.length];
           var online = ch.online || false;
           var now    = ch.now    || null;
 
           if (!online) {
             return '<div class="card offline">' +
-              '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
+              '<div class="card-name" style="color:' + NEON[0] + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
               '<div class="offline-badge">&#9679; OFFLINE</div>' +
               '</div>';
           }
@@ -176,15 +175,15 @@
           var next     = now && now.next     ? esc(now.next)     : '&mdash;';
 
           return '<div class="card">' +
-            '<div class="card-name" style="color:' + neon + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
+            '<div class="card-name" style="color:' + NEON[0] + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
             '<div class="card-title">' + title + '</div>' +
             '<div class="progress-wrap">' +
-              '<div class="progress-bar" style="width:' + progress + '%;background:' + neon + '"></div>' +
+              '<div class="progress-bar" style="width:' + progress + '%;background:' + NEON[1] + '"></div>' +
             '</div>' +
             '<div class="card-meta">' + progress + '% &mdash; ' + rem + ' min remaining</div>' +
             '<div class="card-next"><span class="label">Next:</span> ' + next + '</div>' +
             '<a class="watch-btn" href="/watch/' + encodeURIComponent(ch.id) + '" ' +
-              'style="border-color:' + neon + ';color:' + neon + '">&#9654; WATCH</a>' +
+              'style="border-color:' + NEON[2] + ';color:' + NEON[2] + '">&#9654; WATCH</a>' +
             '</div>';
         }).join('\n');
 
