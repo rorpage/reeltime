@@ -519,6 +519,20 @@ test('buildAggregatedNow — online channel has correct data', () => {
   assert.equal(ch1.port, 10001);
 });
 
+test('buildAggregatedNow — strips stream from now object', () => {
+  const cache = new Map();
+  cache.set('channel_1', {
+    online: true,
+    now: { title: 'Movie A', progress: 0.5, stream: 'http://reeltime-channel_1:8080/stream.m3u8' },
+  });
+
+  const result = buildAggregatedNow('My Director', sampleChannels, cache, '192.168.1.5');
+  const ch1 = result.channels.find(c => c.id === 'channel_1');
+  assert.ok(ch1);
+  assert.equal(ch1.now.title, 'Movie A');
+  assert.equal(ch1.now.stream, undefined);
+});
+
 test('buildAggregatedNow — offline channel has online: false', () => {
   const cache = new Map();
   cache.set('channel_1', { online: false });

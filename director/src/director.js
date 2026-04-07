@@ -276,7 +276,7 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
         stream:     hostname
           ? `http://${hostname}:${ch.port}/stream.m3u8`
           : `${ch.url}/stream.m3u8`,
-        now:        cached.now    ?? null,
+        now:        cached.now ? (({ stream: _s, ...rest }) => rest)(cached.now) : null,
         online:     cached.online ?? false,
       };
       return entry;
