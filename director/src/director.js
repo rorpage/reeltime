@@ -474,13 +474,14 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
           .then(data => {
             const ch = (data.channels || []).find(c => c.id === channelId);
             if (!ch || !ch.now) return;
-            const now = ch.now;
-            document.getElementById('now-title').textContent = now.title || '—';
-            const pct = now.progress != null ? Math.round(now.progress * 100) : 0;
+            const now  = ch.now;
+            const curr = now.current || {};
+            document.getElementById('now-title').textContent = curr.title || '—';
+            const pct = curr.progress != null ? Math.round(curr.progress * 100) : 0;
             document.getElementById('progress-bar').style.width = pct + '%';
-            const rem = now.remaining != null ? Math.ceil(now.remaining / 60) : 0;
+            const rem = curr.remaining != null ? Math.ceil(curr.remaining / 60) : 0;
             document.getElementById('now-meta').textContent = pct + '% \u2014 ' + rem + ' min remaining';
-            const nextTitle = (now.next || '—');
+            const nextTitle = (now.next && now.next.title) || '—';
             document.getElementById('now-next').innerHTML =
               '<span class="label">Next:</span> ' +
               nextTitle.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

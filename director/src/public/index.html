@@ -169,10 +169,11 @@
               '</div>';
           }
 
-          var title    = now && now.title    ? esc(now.title)    : '&mdash;';
-          var progress = now && now.progress != null ? Math.round(now.progress * 100) : 0;
-          var rem      = now && now.remaining != null ? Math.ceil(now.remaining / 60) : 0;
-          var next     = now && now.next     ? esc(now.next)     : '&mdash;';
+          var curr     = now && now.current;
+          var title    = curr && curr.title    ? esc(curr.title)    : '&mdash;';
+          var progress = curr && curr.progress != null ? Math.round(curr.progress * 100) : 0;
+          var rem      = curr && curr.remaining != null ? Math.ceil(curr.remaining / 60) : 0;
+          var next     = now && now.next && now.next.title ? esc(now.next.title) : '&mdash;';
 
           return '<div class="card">' +
             '<div class="card-name" style="color:' + NEON[0] + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +

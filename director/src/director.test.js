@@ -489,7 +489,7 @@ test('buildPlayerHTML — contains HLS.js script tag', () => {
 
 test('buildAggregatedNow — returns correct shape', () => {
   const cache = new Map();
-  cache.set('channel_1', { online: true,  now: { title: 'Movie A', progress: 0.5 } });
+  cache.set('channel_1', { online: true,  now: { current: { title: 'Movie A', progress: 0.5 }, next: null } });
   cache.set('channel_2', { online: false, now: null });
 
   const result = buildAggregatedNow('My Director', sampleChannels, cache);
@@ -505,14 +505,14 @@ test('buildAggregatedNow — includes director name', () => {
 
 test('buildAggregatedNow — online channel has correct data', () => {
   const cache = new Map();
-  cache.set('channel_1', { online: true, now: { title: 'Movie A', progress: 0.5 } });
+  cache.set('channel_1', { online: true, now: { current: { title: 'Movie A', progress: 0.5 }, next: null } });
   cache.set('channel_2', { online: false });
 
   const result = buildAggregatedNow('My Director', sampleChannels, cache, '192.168.1.5');
   const ch1 = result.channels.find(c => c.id === 'channel_1');
   assert.ok(ch1);
   assert.equal(ch1.online, true);
-  assert.equal(ch1.now.title, 'Movie A');
+  assert.equal(ch1.now.current.title, 'Movie A');
   assert.equal(ch1.name, 'Channel 1');
   assert.equal(ch1.stream, 'http://192.168.1.5:10001/stream.m3u8');
   assert.equal(ch1.channelNum, 1);
@@ -523,13 +523,13 @@ test('buildAggregatedNow — strips stream from now object', () => {
   const cache = new Map();
   cache.set('channel_1', {
     online: true,
-    now: { title: 'Movie A', progress: 0.5, stream: 'http://reeltime-channel_1:8080/stream.m3u8' },
+    now: { current: { title: 'Movie A', progress: 0.5 }, next: null, stream: 'http://reeltime-channel_1:8080/stream.m3u8' },
   });
 
   const result = buildAggregatedNow('My Director', sampleChannels, cache, '192.168.1.5');
   const ch1 = result.channels.find(c => c.id === 'channel_1');
   assert.ok(ch1);
-  assert.equal(ch1.now.title, 'Movie A');
+  assert.equal(ch1.now.current.title, 'Movie A');
   assert.equal(ch1.now.stream, undefined);
 });
 
