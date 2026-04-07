@@ -29,7 +29,7 @@ const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../shared/uti
 // ─────────────────────────────────────────────────────────────────────────────
 
 const POLL_INTERVAL_MS   = 10_000;
-const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
+const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78', '#ff9d00', '#bf00ff', '#ff5f00', '#00ff9f', '#fff700'];
 const DEFAULT_PORT       = 10000;
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
@@ -84,7 +84,7 @@ function readChannelConfig(absPath, index, urlOverride) {
     : `http://reeltime-${id}:8080`;
   const port = 10001 + index;
 
-  return { id, name, icon, url, port, configPath: absPath };
+  return { id, name, icon, url, port, channelNum: index + 1, configPath: absPath };
 }
 
 /**
@@ -267,11 +267,13 @@ function buildAggregatedNow(directorName, channels, channelCache) {
     channels: channels.map(ch => {
       const cached = channelCache.get(ch.id) || {};
       return {
-        id:     ch.id,
-        name:   ch.name,
-        url:    ch.url,
-        now:    cached.now    ?? null,
-        online: cached.online ?? false,
+        id:         ch.id,
+        name:       ch.name,
+        channelNum: ch.channelNum,
+        port:       ch.port,
+        url:        ch.url,
+        now:        cached.now    ?? null,
+        online:     cached.online ?? false,
       };
     }),
   };
@@ -303,10 +305,12 @@ function buildHealthResponse(channels, channelCache) {
  * Build the player page HTML for a single channel.
  * @param {{ id: string, name: string, url: string }} channel
  * @param {string} neonColor
+ * @param {string} [externalBase]  External base URL (host:port) visible to the browser.
+ *                                 Falls back to channel.url when not provided.
  * @returns {string}
  */
-function buildPlayerHTML(channel, neonColor) {
-  const streamUrl = `${channel.url}/stream.m3u8`;
+function buildPlayerHTML(channel, neonColor, externalBase) {
+  const streamUrl = `${externalBase || channel.url}/stream.m3u8`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -621,8 +625,10 @@ function createRequestHandler(directorName, channels, channelCache) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
         return res.end('Channel not found');
       }
-      const neon = NEON_COLORS[channels.indexOf(ch) % NEON_COLORS.length];
-      const html = buildPlayerHTML(ch, neon);
+      const neon         = NEON_COLORS[channels.indexOf(ch) % NEON_COLORS.length];
+      const hostname     = host.split(':')[0];
+      const externalBase = `http://${hostname}:${ch.port}`;
+      const html         = buildPlayerHTML(ch, neon, externalBase);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(html);
     }

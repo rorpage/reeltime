@@ -189,6 +189,14 @@ test('readChannelConfig — assigns port = 10001 + index', () => {
   [f0, f1, f2].forEach(f => fs.unlinkSync(f));
 });
 
+test('readChannelConfig — assigns channelNum = index + 1', () => {
+  const f0 = writeTmp(reeltimeCfg('Ch A'));
+  const f1 = writeTmp(reeltimeCfg('Ch B'));
+  assert.equal(readChannelConfig(f0, 0, null).channelNum, 1);
+  assert.equal(readChannelConfig(f1, 1, null).channelNum, 2);
+  [f0, f1].forEach(f => fs.unlinkSync(f));
+});
+
 test('readChannelConfig — reads stream.icon', () => {
   const f  = writeTmp(reeltimeCfg('Ch', { icon: 'https://example.com/icon.png' }));
   const ch = readChannelConfig(f, 0, null);
@@ -375,8 +383,8 @@ test('generateCompose — contains depends_on for each channel', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const sampleChannels = [
-  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080' },
-  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080' },
+  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },
+  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080', port: 10002, channelNum: 2 },
 ];
 
 test('buildAggregatedM3U — starts with #EXTM3U', () => {
@@ -444,10 +452,17 @@ test('buildPlayerHTML — contains channel name', () => {
   assert.ok(html.includes('Channel 1'));
 });
 
-test('buildPlayerHTML — contains stream.m3u8 URL', () => {
+test('buildPlayerHTML — contains stream.m3u8 URL (fallback to channel.url)', () => {
   const ch   = sampleChannels[0];
   const html = buildPlayerHTML(ch, '#00d4ff');
   assert.ok(html.includes('http://reeltime-channel_1:8080/stream.m3u8'));
+});
+
+test('buildPlayerHTML — uses externalBase when provided', () => {
+  const ch   = sampleChannels[0];
+  const html = buildPlayerHTML(ch, '#00d4ff', 'http://192.168.1.10:10001');
+  assert.ok(html.includes('http://192.168.1.10:10001/stream.m3u8'));
+  assert.ok(!html.includes('reeltime-channel_1'));
 });
 
 test('buildPlayerHTML — contains neon color', () => {
@@ -500,6 +515,8 @@ test('buildAggregatedNow — online channel has correct data', () => {
   assert.equal(ch1.now.title, 'Movie A');
   assert.equal(ch1.name, 'Channel 1');
   assert.equal(ch1.url,  'http://reeltime-channel_1:8080');
+  assert.equal(ch1.channelNum, 1);
+  assert.equal(ch1.port, 10001);
 });
 
 test('buildAggregatedNow — offline channel has online: false', () => {
