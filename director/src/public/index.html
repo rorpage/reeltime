@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Reeltime Director</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -28,7 +29,6 @@
       font-weight: 700;
       letter-spacing: 0.08em;
       color: #00d4ff;
-      text-shadow: 0 0 10px #00d4ff88;
     }
     .header-clock {
       font-size: 0.9rem;
@@ -193,7 +193,7 @@
       updateClock();
       setInterval(updateClock, 1000);
       fetchAndRender();
-      setInterval(fetchAndRender, 10000);
+      setInterval(fetchAndRender, 5000);
     })();
   </script>
 </body>

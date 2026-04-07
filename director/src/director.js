@@ -33,6 +33,7 @@ const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const FAVICON_SVG        = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\uD83C\uDFAC</text></svg>";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logging
@@ -219,6 +220,8 @@ function generateCompose(directorConfigPath) {
       '    environment:',
       '      PORT:             "8080"',
       `      STATE_PATH:       "/state/reeltime.json"`,
+      '      # 604800 s = 7 days; prevents stale state from being applied after a long downtime',
+      '      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"',
       '      HLS_SEG:          "${HLS_SEG:-6}"',
       '      HLS_SIZE:         "${HLS_SIZE:-10}"',
       '      RESOLUTION:       "${RESOLUTION:-1280:720}"',
@@ -360,7 +363,6 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
       font-weight: 700;
       letter-spacing: 0.05em;
       color: ${neonColor};
-      text-shadow: 0 0 8px ${neonColor}88;
     }
 
     /* Player */
@@ -621,6 +623,12 @@ function createRequestHandler(directorName, channels, channelCache) {
     if (req.method === 'GET' && pathname === '/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(INDEX_HTML);
+    }
+
+    // GET /favicon.ico — serve an emoji SVG favicon
+    if (req.method === 'GET' && pathname === '/favicon.ico') {
+      res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+      return res.end(FAVICON_SVG);
     }
 
     // GET /watch/:channelId
