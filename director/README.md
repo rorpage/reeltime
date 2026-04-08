@@ -35,8 +35,8 @@ cp reel/config.example.yaml channel2.config.yaml
 # 3. Edit director.config.yaml to list your channel config files
 #    (see Configuration section below)
 
-# 4. Generate the compose file
-node director/src/director.js generate director.config.yaml > docker-compose.director.yml
+# 4. Generate the compose file (installs director deps automatically)
+npm run generate > docker-compose.director.yml
 
 # 5. Start the stack
 docker compose -f docker-compose.director.yml up --build
@@ -226,11 +226,11 @@ After editing `director.config.yaml`, regenerate `docker-compose.director.yml` w
 # From the project root — installs director dependencies automatically:
 npm run generate > docker-compose.director.yml
 
-# Or manually from inside director/:
+# Or manually from inside director/ (after npm install):
 npm install
-npm run generate > ../docker-compose.director.yml
+node src/director.js generate ../director.config.yaml > ../docker-compose.director.yml
 
-# Or without npm (Node.js only):
+# Or without the root npm wrapper (from project root, after dependencies are installed):
 node director/src/director.js generate director.config.yaml > docker-compose.director.yml
 ```
 
