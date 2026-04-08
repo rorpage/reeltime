@@ -20,13 +20,13 @@ Reeltime Director is a companion service that aggregates multiple [Reeltime](../
 
 ---
 
-## Quick Start (Docker Compose)
+## Quick Start (Docker Compose — from source)
 
 ```bash
 # 1. Copy config files
 cp director/director.config.example.yaml director.config.yaml
-cp config.example.yaml channel1.config.yaml
-cp config.example.yaml channel2.config.yaml
+cp reel/config.example.yaml channel1.config.yaml
+cp reel/config.example.yaml channel2.config.yaml
 
 # 2. Edit each channel config (stream.name is how Director names the channel)
 #    channel1.config.yaml  → first Reeltime playlist
@@ -49,6 +49,129 @@ docker compose -f docker-compose.director.yml up --build
 | Channel 2  | http://localhost:10002      |
 
 Ports are assigned sequentially (10001, 10002, …) in the order channels appear in `director.config.yaml`.
+
+---
+
+## Quick Start (Home Server — pre-built images)
+
+If you don't want to clone the repository, you can use the pre-built images from the GitHub Container Registry.
+
+### 1. Create a working directory
+
+```bash
+mkdir reeltime && cd reeltime
+mkdir channel1 channel2
+```
+
+### 2. Create channel config files
+
+Create `channel1/config.yaml` and `channel2/config.yaml`. A minimal example:
+
+```yaml
+stream:
+  name: "Channel 1"
+  loop: true
+  loop_count: -1
+
+videos:
+  - title: "My Video"
+    url: "https://example.com/video.mp4"
+    duration: 3600
+```
+
+### 3. Create director.config.yaml
+
+```yaml
+director:
+  name: "My Reeltime Director"
+  port: 10000
+
+configs:
+  - ./channel1/config.yaml
+  - ./channel2/config.yaml
+```
+
+### 4. Create docker-compose.yml
+
+```yaml
+services:
+
+  director:
+    image: ghcr.io/rorpage/reeltime-director:latest
+    container_name: reeltime-director
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./director.config.yaml:/config/director.config.yaml:ro
+      - ./channel1/config.yaml:/config/channel1_config.yaml:ro
+      - ./channel2/config.yaml:/config/channel2_config.yaml:ro
+    environment:
+      PORT: "10000"
+      DIRECTOR_CONFIG: "/config/director.config.yaml"
+    depends_on:
+      - reeltime-channel_1
+      - reeltime-channel_2
+
+  reeltime-channel_1:
+    image: ghcr.io/rorpage/reeltime:latest
+    container_name: reeltime-channel_1
+    restart: unless-stopped
+    ports:
+      - "10001:8080"
+    volumes:
+      - ./channel1:/config
+    environment:
+      PORT: "8080"
+      CONFIG_PATH: "/config/config.yaml"
+      STATE_MAX_AGE_SEC: "604800"
+
+  reeltime-channel_2:
+    image: ghcr.io/rorpage/reeltime:latest
+    container_name: reeltime-channel_2
+    restart: unless-stopped
+    ports:
+      - "10002:8080"
+    volumes:
+      - ./channel2:/config
+    environment:
+      PORT: "8080"
+      CONFIG_PATH: "/config/config.yaml"
+      STATE_MAX_AGE_SEC: "604800"
+```
+
+> **Note:** The service names (`reeltime-channel_1`, `reeltime-channel_2`) must match the `channel_id` derived from each channel's `stream.name` in snake_case. If your `stream.name` is `"Channel 1"` the derived id is `channel_1`, so the service is `reeltime-channel_1`. Set `stream.channel_id` explicitly in your channel config if you want a predictable id.
+>
+> The director config references config files at `/config/channel1_config.yaml` and `/config/channel2_config.yaml` inside the container. Update the `configs:` paths in `director.config.yaml` to match those mounted paths:
+> ```yaml
+> configs:
+>   - /config/channel1_config.yaml
+>   - /config/channel2_config.yaml
+> ```
+
+### 5. Start the stack
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+> **Tip:** If you have Node.js installed locally, you can use the `generate` command instead of writing the compose file by hand:
+> ```bash
+> docker run --rm \
+>   -v "$(pwd)/director.config.yaml:/data/director.config.yaml:ro" \
+>   -v "$(pwd)/channel1/config.yaml:/data/channel1/config.yaml:ro" \
+>   -v "$(pwd)/channel2/config.yaml:/data/channel2/config.yaml:ro" \
+>   --entrypoint node \
+>   ghcr.io/rorpage/reeltime-director:latest \
+>   /app/director/src/director.js generate /data/director.config.yaml \
+>   > docker-compose.director.yml
+> ```
+> Then edit the generated file to replace `build:` / `context:` / `dockerfile:` with `image:` for each service.
+
+### State persistence
+
+Each reel container writes its playback state to `<configDir>/state.<channel_id>_reeltime.json`. With the volume mounts above (`./channel1:/config`), the state file for Channel 1 will be created at `./channel1/state.channel_1_reeltime.json` on the host and will survive container restarts and recreation.
 
 ---
 
@@ -127,7 +250,7 @@ The generated file includes:
 
 | Method | Path              | Description                                                        |
 |--------|-------------------|--------------------------------------------------------------------|
-| GET    | `/`               | Dark neon guide UI — all channels, auto-refreshes every 30 s      |
+| GET    | `/`               | Dark neon guide UI — all channels, auto-refreshes every 5 s       |
 | GET    | `/watch/:id`      | Embedded HLS.js player for the channel with the given id          |
 | GET    | `/now`            | Aggregated now-playing JSON for all channels                      |
 | GET    | `/xmltv`          | Combined XMLTV guide (merged from all channels)                   |
