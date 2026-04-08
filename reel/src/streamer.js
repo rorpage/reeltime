@@ -21,6 +21,7 @@ const fs                  = require('node:fs');
 const path                = require('node:path');
 const http                = require('node:http');
 const yaml                = require('js-yaml');
+const { toSnakeCase, escHtml, escXML } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -260,24 +261,6 @@ function toXMLTVDate(ms) {
     pad2(d.getUTCSeconds())    +
     ' +0000'
   );
-}
-
-/** Convert a label into a stable snake_case identifier. */
-function toSnakeCase(str) {
-  return String(str || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'reeltime';
-}
-
-/** XML-safe string escaping. */
-function escXML(s) {
-  return String(s)
-    .replace(/&/g,  '&amp;')
-    .replace(/</g,  '&lt;')
-    .replace(/>/g,  '&gt;')
-    .replace(/"/g,  '&quot;')
-    .replace(/'/g,  '&apos;');
 }
 
 function normalizeXMLTVValueDate(value) {
@@ -657,11 +640,6 @@ const CORS = {
   'Cache-Control':                'no-cache, no-store',
 };
 
-function escHtml(s) {
-  return String(s).replace(/[&<>"']/g,
-    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 function buildPlayerHTML(name) {
   const n = escHtml(name);
   return `<!DOCTYPE html>
@@ -832,22 +810,50 @@ function startServer(cfg) {
         next = peek[0] ?? null;
       }
 
+      // Optional: return an array of upcoming entries for the guide view
+      // ?upcoming=N  (0 = disabled, max 20)
+      const upcomingCount = Math.min(20, Math.max(0, +(params.get('upcoming') ?? 0)));
+      let   upcoming      = [];
+      if (upcomingCount > 0) {
+        // Use a 4-hour look-ahead window to source enough entries
+        const win = getScheduleWindow(
+          current.endAt,
+          current.endAt + 4 * 3600 * 1000,
+          videos, loop, loopCount,
+        );
+        upcoming = win.slice(0, upcomingCount).map(e => ({
+          title:       e.title,
+          seriesTitle: e.seriesTitle  || '',
+          subTitle:    e.subTitle     || '',
+          episodeNum:  e.episodeNum   || '',
+          description: e.description || '',
+          duration:    e.duration,
+          startsAt:    new Date(e.startAt).toISOString(),
+          endsAt:      new Date(e.endAt).toISOString(),
+        }));
+      }
+
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         current: {
-          title:     current.title,
-          duration:  current.duration,
-          position:  Math.round(position  * 10) / 10,  // 1 decimal place (seconds)
-          remaining: Math.round(remaining * 10) / 10,
-          progress,                                     // 0.0000 → 1.0000
-          startedAt: new Date(current.startAt).toISOString(),
-          endsAt:    new Date(current.endAt).toISOString(),
+          title:       current.title,
+          seriesTitle: current.seriesTitle  || '',
+          subTitle:    current.subTitle     || '',
+          episodeNum:  current.episodeNum   || '',
+          description: current.description || '',
+          duration:    current.duration,
+          position:    Math.round(position  * 10) / 10,  // 1 decimal place (seconds)
+          remaining:   Math.round(remaining * 10) / 10,
+          progress,                                       // 0.0000 → 1.0000
+          startedAt:   new Date(current.startAt).toISOString(),
+          endsAt:      new Date(current.endAt).toISOString(),
         },
         next: next ? {
           title:    next.title,
           duration: next.duration,
           startsAt: new Date(next.startAt).toISOString(),
         } : null,
+        ...(upcomingCount > 0 && { upcoming }),
         stream: `http://${host}/stream.m3u8`,
       }));
       return;

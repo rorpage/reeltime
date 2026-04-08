@@ -29,10 +29,11 @@ RUN apk add --no-cache \
 # ── Application ───────────────────────────────────────────────────────────────
 WORKDIR /app
 
-COPY package.json ./
+COPY reel/package.json ./
 RUN npm install --only=production && npm cache clean --force
 
-COPY src/ ./src/
+COPY reel/src/ ./reel/src/
+COPY shared/ ./shared/
 
 # ── Runtime directories ───────────────────────────────────────────────────────
 #   /tmp/hls  — HLS segments + playlist (written at runtime)
@@ -64,4 +65,4 @@ HEALTHCHECK --interval=30s \
             --retries=3 \
     CMD wget -qO /dev/null http://localhost:${PORT}/health || exit 1
 
-CMD ["node", "src/streamer.js"]
+CMD ["node", "reel/src/streamer.js"]

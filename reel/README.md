@@ -1,0 +1,179 @@
+# Reeltime
+
+Reeltime is a self-hosted continuous HLS video streamer built with Node.js and ffmpeg.
+It reads a YAML playlist and streams videos in a continuous loop as a live m3u8 feed.
+
+## Features
+
+- Single ffmpeg process fed by a named FIFO using ffconcat.
+- Infinite mode uses bounded prefill plus automatic rollover/retry.
+- Built-in web player with now-playing ticker and progress bar.
+- XMLTV output for Live TV integrations.
+- M3U tuner endpoint for Jellyfin, Plex (via xTeve/Threadfin), Emby, and Kodi.
+- Health endpoint with loop and queue state.
+
+## Requirements
+
+- Node.js 20 or newer for local development.
+- ffmpeg installed locally if running outside Docker.
+- Docker and Docker Compose if running containerized.
+
+Notes:
+- Docker image currently uses Node 22 Alpine.
+- package.json engine is set to Node >= 20.
+
+## Quick Start (Docker Compose)
+
+From the **repo root** (where `docker-compose.yml` lives):
+
+1. Copy the sample config:
+
+	mkdir -p config
+	cp reel/config.example.yaml config/config.yaml
+
+2. Edit `config/config.yaml` with your video URLs and durations.
+
+3. Start the service:
+
+	docker compose up --build
+
+4. Open:
+
+- Player: http://localhost:8080/
+- Stream: http://localhost:8080/stream.m3u8
+- Health: http://localhost:8080/health
+
+## Quick Start (Local)
+
+1. Install dependencies:
+
+	npm install
+
+2. Copy config and edit it:
+
+	cp reel/config.example.yaml config.yaml
+
+3. Set environment variables (optional) and start:
+
+	CONFIG_PATH=./config.yaml npm start
+
+On Windows PowerShell:
+
+	$env:CONFIG_PATH = ".\\config.yaml"
+	npm start
+
+## Configuration
+
+Main config file: config.yaml
+
+Structure:
+
+stream:
+- name: display name
+- icon: optional XMLTV channel icon URL
+- channel_id: optional stable URL-safe override for XMLTV/M3U id (defaults to stream name in snake_case)
+- loop: true or false
+- loop_count: -1 for infinite, or N for finite loops
+
+videos:
+- title: display title
+- series_title: optional XMLTV series/program title override
+- sub_title: optional XMLTV episode subtitle
+- episode_num: optional XMLTV onscreen episode number (for example S01E07 or S01E01-E02)
+- date: optional XMLTV air/release date (YYYYMMDD or YYYY)
+- url: source URL (http/https/rtmp/file)
+- icon: optional XMLTV programme icon URL
+- duration: seconds to queue for each clip
+- description: optional XMLTV description
+- category: optional XMLTV category
+
+See full example in reel/config.example.yaml.
+
+If `channel_id` is omitted, Reeltime derives it from `stream.name` and uses that same value consistently for both XMLTV and M3U output. If `icon` is set on the stream, Reeltime emits it both as XMLTV channel artwork and as the M3U `tvg-logo` value. If `icon` is set on a video, it is emitted as XMLTV programme artwork.
+
+For episodic content, set `series_title`, `sub_title`, and `episode_num` so Reeltime can emit richer XMLTV metadata:
+
+- `<title>` comes from `series_title` when present, otherwise `title`
+- `<sub-title>` comes from `sub_title`
+- `<episode-num system="onscreen">` comes from `episode_num`
+- `<date>` comes from `date` when supplied
+
+## Environment Variables
+
+- CONFIG_PATH (default /config/config.yaml)
+- HLS_DIR (default /tmp/hls)
+- FIFO_PATH (default /tmp/playlist.ffconcat)
+- PORT (default 8080)
+- HLS_SEG (default 6)
+- HLS_SIZE (default 10)
+- RESOLUTION (default 1280:720)
+- VIDEO_BITRATE (default 2000k)
+- AUDIO_BITRATE (default 128k)
+- FRAMERATE (default 30)
+- FFMPEG_THREADS (default 0, auto)
+- PASSES_PER_CYCLE (default 3, how many times the playlist repeats per rollover cycle when loop_count is -1. Rule of thumb: `ceil(target_days / (num_videos × avg_duration_hours))`)
+- STATE_PATH (default `<config dir>/state.<channel_id>_reeltime.json`, path to the playback state file written every 5 seconds so the stream can resume after a restart)
+- STATE_MAX_AGE_SEC (default 86400, maximum age in seconds of a state file before it is ignored on startup; streams down longer than this restart from the beginning)
+- DEBUG (set to 1 for verbose logs)
+
+## HTTP Endpoints
+
+- GET / : HLS.js web player with now-playing ticker
+- GET /stream.m3u8 : live HLS playlist (returns 503 JSON while starting/retrying)
+- GET /seg_*.ts : MPEG-TS segments
+- GET /now : JSON now-playing status and next item
+- GET /xmltv : XMLTV guide (supports ?hours=1-24, default 4)
+- GET /xmltv.xml : alias for /xmltv
+- GET /channels.m3u : M3U tuner file
+- GET /playlist.m3u : alias for /channels.m3u
+- GET /health : health, uptime, and loop state
+
+## Jellyfin/Plex/Emby Setup
+
+Use these URLs:
+
+- M3U tuner: http://<host>:8080/channels.m3u
+- XMLTV guide: http://<host>:8080/xmltv
+
+The generated M3U includes x-tvg-url pointing to /xmltv to simplify setup.
+If a stream icon is configured, the generated M3U also includes `tvg-logo`.
+
+## Restart-Resume
+
+Reeltime writes a JSON state file every 5 seconds recording the current video index, loop pass, and playback position. If the container restarts, it reads this file and resumes from approximately the same point.
+
+State file location: `<config dir>/state.<channel_id>_reeltime.json` (e.g. `/config/state.my_channel_reeltime.json`). The name is derived from the `channel_id` field in your `config.yaml` (which itself defaults to a snake_case version of `stream.name`). This means:
+
+- Multiple containers sharing the same config directory each write their own state file automatically, as long as each config file has a distinct `channel_id` (or `stream.name`).
+- A container reused with a different config file gets a fresh state file automatically, since the `channel_id` will differ.
+- To override the path entirely, set `STATE_PATH` explicitly.
+
+The state file is ignored and playback starts from the beginning if:
+
+- The file is missing or unparseable.
+- `videoIndex` is out of bounds (playlist has changed).
+- The file is older than `STATE_MAX_AGE_SEC` seconds (default 24 hours).
+
+The state file is written alongside the config file inside the container. With the default `docker compose` setup (directory bind mount `./config:/config`), the state file survives both `docker restart` / crash-recovery restarts and full container recreation (`docker compose down && up`).
+
+## Docker
+
+Build and run directly:
+
+docker build -t reeltime ./reel
+docker run -p 8080:8080 -v $(pwd)/config:/config reeltime
+
+On Windows PowerShell:
+
+docker run -p 8080:8080 -v ${PWD}/config:/config reeltime
+
+## Development Notes
+
+- Runtime HLS output is written to /tmp/hls.
+- The schedule model is wall-clock aligned and used by both /now and /xmltv.
+- Infinite mode pre-fills ffconcat input in batches and auto-restarts cycles.
+- Logging is timestamped in ISO-8601 UTC format.
+
+## License
+
+Unlicense
