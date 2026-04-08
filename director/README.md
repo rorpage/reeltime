@@ -11,7 +11,7 @@ Reeltime Director is a companion service that aggregates multiple [Reeltime](../
 - **Config-file driven** — point Director at your existing Reeltime `config.yaml` files; it reads channel names, IDs, and icons directly from them
 - **Auto-naming** — Docker container/service names and internal URLs are derived automatically from each channel's `stream.name`
 - **`generate` command** — prints a ready-to-use `docker-compose.director.yml` to stdout from your config in one step
-- **Dark neon guide UI** — channel cards with live progress bars, now-playing info, and next-up, auto-refreshing every 30 seconds
+- **Dark neon guide UI** — channel cards with live progress bars, now-playing info, and next-up, auto-refreshing every 5 seconds
 - **Embedded HLS.js player** — per-channel player page with live now-playing ticker (polls every 5 s)
 - **Combined XMLTV** — proxies and merges `/xmltv` from every channel into one document for Jellyfin / Plex / Emby
 - **Aggregated M3U** — single `/channels.m3u` with one entry per channel
@@ -141,12 +141,30 @@ The generated file includes:
 
 ```json
 {
+  "name": "Reeltime Director",
   "channels": [
     {
       "id": "channel_1",
       "name": "Channel 1",
-      "url": "http://reeltime-channel_1:8080",
-      "now": { "title": "...", "progress": 0.42, "remaining": 1200, "next": "..." },
+      "channelNum": 1,
+      "port": 10001,
+      "stream": "http://192.168.1.x:10001/stream.m3u8",
+      "now": {
+        "current": {
+          "title": "Video Title",
+          "duration": 3600,
+          "position": 120.5,
+          "remaining": 3479.5,
+          "progress": 0.0335,
+          "startedAt": "2026-04-07T17:43:06.590Z",
+          "endsAt": "2026-04-07T18:43:06.590Z"
+        },
+        "next": {
+          "title": "Next Video Title",
+          "duration": 3600,
+          "startsAt": "2026-04-07T18:43:06.590Z"
+        }
+      },
       "online": true
     }
   ]
@@ -198,5 +216,5 @@ All tests use `node:test` and `node:assert/strict` — no external testing libra
 - **XMLTV proxy** — On each `/xmltv` request, Director fetches `/xmltv` from all channels concurrently and merges the resulting `<channel>` and `<programme>` elements into a single `<tv>` document.
 - **M3U aggregation** — `buildAggregatedM3U` constructs the playlist entirely from config; no upstream fetch is needed.
 - **No external HTTP framework** — routing uses a simple `if`/`match` handler built on `node:http`. CORS headers are added to every response.
-- **Dark neon UI** — rendered server-side from cached poll state; the browser only runs a clock updater and a 30-second `location.reload()`.
+- **Dark neon UI** — a static `index.html` served from `director/src/public/`; client-side JS fetches `/now` every 5 s and updates all channel cards in place, keeping a live clock in the top-right corner.
 
