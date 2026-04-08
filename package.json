@@ -1,14 +1,10 @@
 {
   "name": "reeltime",
   "version": "1.0.0",
-  "description": "Stream local or remote video files with ffmpeg in an IPTV-compatible format!",
-  "main": "src/streamer.js",
+  "description": "Reeltime — self-hosted continuous HLS video streamer with optional Director aggregator",
+  "private": true,
   "scripts": {
-    "start": "node src/streamer.js",
-    "dev":   "node --watch src/streamer.js"
-  },
-  "dependencies": {
-    "js-yaml": "^4.1.0"
+    "mark": "npm install --prefix director --silent && node director/src/director.js mark director.config.yaml"
   },
   "engines": {
     "node": ">=20.0.0"

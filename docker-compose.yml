@@ -114,7 +114,7 @@ services:
   reeltime:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: reel/Dockerfile
     container_name: reeltime
     restart: unless-stopped
 
