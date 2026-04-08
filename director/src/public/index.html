@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Reeltime Director</title>
+  <title>Reeltime TV Guide</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.ico">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,7 +31,19 @@
     .header-clock { font-size: 0.88rem; color: #8892a4; font-variant-numeric: tabular-nums; }
 
     /* ── Guide wrapper ─────────────────────────────────── */
-    .guide-wrap { flex: 1; overflow: auto; }
+    .guide-wrap { flex: 1; overflow-y: auto; padding: 24px; display: flex; justify-content: center; align-items: flex-start; }
+
+    /* ── Centered box ──────────────────────────────────── */
+    .guide-box {
+      width: 100%; max-width: 900px;
+      background: #0d0f18;
+      border: 1px solid #1c2033;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    @media (max-width: 700px) {
+      .guide-box { overflow: auto; }
+    }
 
     /* ── Guide grid using a table-like flex layout ─────── */
     .guide-grid { display: flex; flex-direction: column; min-width: max-content; }
@@ -45,16 +57,17 @@
 
     /* Left channel-name column */
     .ch-cell {
-      width: 130px; min-width: 130px; max-width: 130px;
+      width: 140px; min-width: 140px; max-width: 140px;
       padding: 8px 10px;
       background: #0d0f18;
       border-right: 2px solid #1c2033;
       position: sticky; left: 0; z-index: 2;
-      display: flex; flex-direction: column; justify-content: center; gap: 3px;
+      display: flex; flex-direction: column; justify-content: center; gap: 4px;
     }
     .ch-cell.corner { z-index: 4; height: 36px; justify-content: center; }
-    .ch-num  { font-size: 0.68rem; color: #5a6278; font-weight: 600; letter-spacing: 0.08em; }
+    .ch-num  { font-size: 0.68rem; color: #39ff14; font-weight: 600; letter-spacing: 0.08em; }
     .ch-name { font-size: 0.82rem; font-weight: 700; color: #00d4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ch-name:hover { text-decoration: underline; }
     .ch-watch {
       display: inline-block; padding: 2px 7px;
       border: 1px solid #ff2d78; border-radius: 3px;
@@ -73,30 +86,49 @@
     }
 
     /* Program rail */
-    .prog-rail { position: relative; flex: 1; height: 68px; overflow: hidden; }
+    .prog-rail { position: relative; flex: 1; height: 120px; overflow: hidden; }
 
     /* Program block */
     .prog {
       position: absolute; top: 2px; height: calc(100% - 4px);
-      border-radius: 3px; overflow: hidden;
+      border-radius: 4px; overflow: hidden;
       border: 1px solid #1c2033;
-      display: flex; flex-direction: column; padding: 4px 6px;
-      cursor: pointer; transition: filter 0.15s;
+      display: flex; flex-direction: column; padding: 5px 7px;
+      cursor: default; transition: filter 0.15s;
       background: #0f1117;
     }
     .prog:hover { filter: brightness(1.35); z-index: 1; }
-    .prog.prog-current { border-left: 3px solid #39ff14; background: #0c1a0d; }
-    .prog-time  { font-size: 0.62rem; color: #8892a4; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
-    .prog-title { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .prog.prog-current { border-color: #2a3a5c; border-left-color: #39ff14; background: #0d1220; }
+
+    .prog-time {
+      font-size: 0.62rem; color: #8892a4;
+      font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0;
+    }
+    .prog-meta {
+      font-size: 0.85rem; font-weight: 700; color: #00d4ff;
+      overflow: hidden;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      margin-top: 3px; flex-shrink: 0;
+      line-height: 1.25;
+    }
+    .prog-desc {
+      font-size: 0.7rem; color: #6a7588;
+      overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+      margin-top: 5px; padding-top: 5px;
+      border-top: 1px solid #1c2033;
+      line-height: 1.35;
+      display: none;
+    }
+    .prog-wide .prog-desc { display: -webkit-box; }
 
     /* Vertical 30-min grid lines */
     .grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #1c2033; pointer-events: none; }
 
     /* Current-time cursor */
-    .now-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff2d78; pointer-events: none; z-index: 1; }
+    .now-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: #39ff14; pointer-events: none; z-index: 1; }
     .now-cursor::before {
       content: ''; position: absolute; top: 0; left: -3px;
-      width: 8px; height: 8px; background: #ff2d78; border-radius: 50%;
+      width: 8px; height: 8px; background: #39ff14; border-radius: 50%;
     }
 
     /* Offline placeholder */
@@ -110,12 +142,14 @@
 </head>
 <body>
   <header class="header">
-    <div class="header-title" id="director-title">&#127916; Reeltime Director</div>
+    <div class="header-title">&#128250; Reeltime TV Guide</div>
     <div class="header-clock" id="clock"></div>
   </header>
 
   <div class="guide-wrap">
-    <div class="guide-grid" id="guide-grid"></div>
+    <div class="guide-box">
+      <div class="guide-grid" id="guide-grid"></div>
+    </div>
   </div>
 
   <footer class="footer">
@@ -126,8 +160,15 @@
 
   <script>
     (function () {
-      var PX_PER_MIN = 5;   // 5 px per minute → 300 px/hour
       var WIN_MINS   = 120; // 2-hour visible window
+      var CH_CELL_W  = 140; // fixed channel-label column width
+      var PX_PER_MIN = 5;   // updated each render to fill the box width
+
+      // Recalculates PX_PER_MIN so the prog-rail always fills the box.
+      function updatePxPerMin() {
+        var box = document.querySelector('.guide-box');
+        if (box) PX_PER_MIN = Math.max(2, (box.clientWidth - CH_CELL_W) / WIN_MINS);
+      }
 
       function esc(s) {
         return String(s)
@@ -164,19 +205,26 @@
         var rightPx = Math.min(pxFromMs(wEnd, wStart), pxFromMs(endMs, wStart));
         var widthPx = Math.max(3, rightPx - leftPx) - 2; // 1px gap each side
 
-        var cls = 'prog' + (isCurrent ? ' prog-current' : '');
-        return '<div class="' + cls + '" style="left:' + (leftPx + 1) + 'px;width:' + widthPx + 'px">' +
-          '<div class="prog-time">' + fmtTime(startMs) + '</div>' +
-          '<div class="prog-title">' + esc(prog.title) + '</div>' +
-          '</div>';
+        var isWide = widthPx >= 110;
+        var cls = 'prog'
+          + (isCurrent ? ' prog-current' : '')
+          + (isWide    ? ' prog-wide'    : '');
+
+        // Episode label: "S01E03 · Episode Title", falling back to the video title
+        var epLabel = (prog.seriesTitle && prog.title && prog.title !== prog.seriesTitle)
+          ? prog.title : (prog.subTitle || '');
+        var metaParts = [prog.episodeNum, epLabel].filter(Boolean);
+        var metaLine  = metaParts.join(' \u00b7 ') || prog.seriesTitle || prog.title;
+
+        return '<div class="' + cls + '" style="left:' + (leftPx + 1) + 'px;width:' + widthPx + 'px">'
+          + '<div class="prog-time">' + fmtTime(startMs) + '</div>'
+          + '<div class="prog-meta">' + esc(metaLine) + '</div>'
+          + (prog.description ? '<div class="prog-desc">' + esc(prog.description) + '</div>' : '')
+          + '</div>';
       }
 
       function renderGuide(data) {
-        if (data.name) {
-          document.title = data.name;
-          document.getElementById('director-title').textContent = '\uD83C\uDFAC ' + data.name;
-        }
-
+        updatePxPerMin();
         var now    = Date.now();
         var wStart = winStartMs(now);
         var wEnd   = wStart + WIN_MINS * 60 * 1000;
@@ -189,7 +237,6 @@
         html += '<div class="guide-header-row">';
         html += '<div class="ch-cell corner"><span style="font-size:0.72rem;color:#5a6278">CHANNEL</span></div>';
         html += '<div class="time-strip" style="width:' + totalPx + 'px">';
-        // Now-cursor in the header strip too
         html += '<div class="now-cursor" style="left:' + nowPx + 'px"></div>';
         for (var m = 0; m <= WIN_MINS; m += 30) {
           html += '<div class="time-label" style="left:' + (m * PX_PER_MIN) + 'px">' + fmtTime(wStart + m * 60 * 1000) + '</div>';
@@ -205,11 +252,11 @@
 
           // Left cell
           html += '<div class="guide-row">';
-          html += '<div class="ch-cell">' +
-            '<div class="ch-num">CH\u00a0' + (ch.channelNum || '') + '</div>' +
-            '<div class="ch-name">' + esc(ch.name) + '</div>' +
-            '<a class="ch-watch" href="/watch/' + encodeURIComponent(ch.id) + '">\u25BA\u00a0WATCH</a>' +
-            '</div>';
+          html += '<div class="ch-cell">'
+            + '<div class="ch-num">CH\u00a0' + (ch.channelNum || '') + '</div>'
+            + '<a class="ch-name" href="/channel/' + encodeURIComponent(ch.id) + '">' + esc(ch.name) + '</a>'
+            + '<a class="ch-watch" href="/watch/' + encodeURIComponent(ch.id) + '">\u25BA\u00a0WATCH</a>'
+            + '</div>';
 
           // Program rail
           html += '<div class="prog-rail" style="width:' + totalPx + 'px">';
@@ -227,9 +274,13 @@
             // Current program
             if (currObj && currObj.startedAt && currObj.endsAt) {
               html += buildProgHtml({
-                title:    currObj.title,
-                startsAt: currObj.startedAt,
-                endsAt:   currObj.endsAt,
+                title:       currObj.title,
+                seriesTitle: currObj.seriesTitle || '',
+                subTitle:    currObj.subTitle    || '',
+                episodeNum:  currObj.episodeNum  || '',
+                description: currObj.description || '',
+                startsAt:    currObj.startedAt,
+                endsAt:      currObj.endsAt,
               }, wStart, wEnd, true);
             }
             // Upcoming programs
@@ -256,6 +307,7 @@
       setInterval(updateClock, 1000);
       fetchAndRender();
       setInterval(fetchAndRender, 5000);
+      window.addEventListener('resize', fetchAndRender);
     })();
   </script>
 </body>

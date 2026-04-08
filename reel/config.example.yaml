@@ -5,7 +5,8 @@
 stream:
   name:       "My Continuous Stream"   # display name everywhere
   icon:       "https://example.com/channel-icon.png" # optional XMLTV channel icon URL
-  # channel_id: "my_continuous_stream" # optional override; defaults to stream.name in snake_case
+  # channel_id:  "my_continuous_stream" # optional override; defaults to stream.name in snake_case
+  # description: "A short blurb shown on the channel detail page in Reeltime Director."
 
   loop:       true    # false = play once then exit
   loop_count: -1      # -1 = infinite  |  N = play exactly N times

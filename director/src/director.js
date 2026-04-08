@@ -33,7 +33,7 @@ const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
-const FAVICON_SVG        = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\uD83C\uDFAC</text></svg>";
+const FAVICON_SVG        = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\uD83D\uDCFA</text></svg>";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logging
@@ -85,7 +85,9 @@ function readChannelConfig(absPath, index, urlOverride) {
     : `http://reeltime-${id}:8080`;
   const port = 10001 + index;
 
-  return { id, name, icon, url, port, channelNum: index + 1, configPath: absPath };
+  const description = String(raw?.stream?.description || '');
+
+  return { id, name, icon, description, url, port, channelNum: index + 1, configPath: absPath };
 }
 
 /**
@@ -138,22 +140,26 @@ function loadConfig(filePath) {
  * @param {string} directorConfigPath  Path to director.config.yaml
  * @returns {string}  Complete docker-compose YAML
  */
-function generateCompose(directorConfigPath) {
+function generateCompose(directorConfigPath, useImages = false) {
   const cfg    = loadConfig(directorConfigPath);
   const cfgDir = path.dirname(path.resolve(directorConfigPath));
 
-  /** Make a path relative to cfgDir, prefixed with ./ */
+  /** Make a path relative to cfgDir, prefixed with ./ (always forward slashes) */
   function rel(absPath) {
-    const r = path.relative(cfgDir, absPath);
+    const r = path.relative(cfgDir, absPath).replace(/\\/g, '/');
     return r.startsWith('..') ? absPath : `./${r}`;
   }
 
   const dirCfgRel  = rel(path.resolve(directorConfigPath));
   const dirCfgBase = path.basename(directorConfigPath);
 
+  const generateCmd = useImages
+    ? 'node director/src/director.js mark director.config.yaml'
+    : 'node director/src/director.js mark director.config.yaml --build';
+
   const lines = [
     '# This file is generated from director.config.yaml by running:',
-    '#   node director/src/director.js generate > docker-compose.director.yml',
+    `#   ${generateCmd}`,
     `# Director : http://localhost:${cfg.port}`,
   ];
 
@@ -167,9 +173,19 @@ function generateCompose(directorConfigPath) {
     'services:',
     '',
     '  director:',
-    '    build:',
-    '      context: .',
-    '      dockerfile: director/Dockerfile',
+  );
+
+  if (useImages) {
+    lines.push('    image: ghcr.io/rorpage/reeltime-director:latest');
+  } else {
+    lines.push(
+      '    build:',
+      '      context: .',
+      '      dockerfile: director/Dockerfile',
+    );
+  }
+
+  lines.push(
     '    container_name: reeltime-director',
     '    restart: unless-stopped',
     '    ports:',
@@ -179,9 +195,14 @@ function generateCompose(directorConfigPath) {
   );
 
   cfg.channels.forEach(ch => {
-    const chRel  = rel(ch.configPath);
-    const chBase = path.basename(ch.configPath);
-    lines.push(`      - ${chRel}:/config/${chBase}:ro`);
+    const chRel = rel(ch.configPath);
+    // Preserve subdirectory structure so the path inside /config matches what
+    // director.config.yaml references when resolved from /config/.
+    const relFromCfgDir = path.relative(cfgDir, path.resolve(ch.configPath));
+    const containerSubPath = relFromCfgDir.startsWith('..')
+      ? path.basename(ch.configPath)          // outside cfgDir — fall back to basename
+      : relFromCfgDir.replace(/\\/g, '/');
+    lines.push(`      - ${chRel}:/config/${containerSubPath}:ro`);
   });
 
   lines.push(
@@ -212,9 +233,19 @@ function generateCompose(directorConfigPath) {
     lines.push(
       '',
       `  reeltime-${ch.id}:`,
-      '    build:',
-      '      context: .',
-      '      dockerfile: reel/Dockerfile',
+    );
+
+    if (useImages) {
+      lines.push('    image: ghcr.io/rorpage/reeltime:latest');
+    } else {
+      lines.push(
+        '    build:',
+        '      context: .',
+        '      dockerfile: reel/Dockerfile',
+      );
+    }
+
+    lines.push(
       `    container_name: reeltime-${ch.id}`,
       '    restart: unless-stopped',
       '    ports:',
@@ -332,7 +363,7 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escHtml(channel.name)} — Reeltime Director</title>
+  <title>${escHtml(channel.name)} — Reeltime TV Guide</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -368,7 +399,7 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
       font-size: 1.2rem;
       font-weight: 700;
       letter-spacing: 0.05em;
-      color: ${neonColor};
+      color: #00d4ff;
     }
 
     /* Player */
@@ -417,7 +448,7 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
     }
     .progress-bar {
       height: 100%;
-      background: ${neonColor};
+      background: #39ff14;
       border-radius: 2px;
       transition: width 0.4s;
     }
@@ -508,6 +539,197 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Channel view page  /channel/:id
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build the static HTML for the /channel/:id detail page.
+ * Client-side JS polls the reel's /now endpoint directly.
+ *
+ * @param {object} channel
+ * @param {string} externalBase  http://hostname:port  (browser-accessible)
+ * @returns {string}
+ */
+function buildChannelHTML(channel, externalBase) {
+  const nowUrl = `${externalBase}/now?upcoming=20`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escHtml(channel.name)} — Reeltime TV Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #080a0f; color: #dde4f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px 24px; background: #0f1117;
+      border-bottom: 1px solid #1c2033; flex-shrink: 0;
+    }
+    .back-link { font-size: 0.9rem; color: #8892a4; display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+    .back-link:hover { color: #dde4f0; }
+    .header-ch { display: flex; flex-direction: column; gap: 2px; }
+    .header-chnum { font-size: 0.68rem; color: #39ff14; font-weight: 600; letter-spacing: 0.08em; }
+    .header-chname { font-size: 1.2rem; font-weight: 700; color: #00d4ff; }
+    .watch-btn {
+      margin-left: auto; padding: 6px 16px;
+      border: 1px solid #ff2d78; border-radius: 4px;
+      font-size: 0.82rem; color: #ff2d78; font-weight: 600;
+      transition: background 0.15s;
+    }
+    .watch-btn:hover { background: #ff2d7822; }
+
+    /* Content */
+    .content { flex: 1; max-width: 800px; width: 100%; margin: 0 auto; padding: 28px 24px; display: flex; flex-direction: column; gap: 28px; }
+
+    /* Channel description */
+    .ch-desc { font-size: 0.9rem; color: #8892a4; line-height: 1.6; }
+
+    /* Card */
+    .card { background: #0f1117; border: 1px solid #1c2033; border-radius: 8px; padding: 20px; }
+    .card-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; color: #5a6278; text-transform: uppercase; margin-bottom: 12px; }
+
+    /* Now playing */
+    .now-ep { font-size: 1.05rem; font-weight: 700; color: #00d4ff; margin-bottom: 4px; }
+    .now-series { font-size: 0.85rem; color: #8892a4; margin-bottom: 12px; }
+    .now-times { font-size: 0.8rem; color: #5a6278; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+    .progress-wrap { height: 5px; background: #1c2033; border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+    .progress-fill { height: 100%; background: #39ff14; border-radius: 3px; transition: width 0.5s; }
+    .now-pct { font-size: 0.78rem; color: #5a6278; margin-bottom: 12px; }
+    .now-desc { font-size: 0.85rem; color: #6a7588; line-height: 1.6; }
+
+    /* Upcoming list */
+    .up-list { display: flex; flex-direction: column; gap: 0; }
+    .up-item {
+      display: grid; grid-template-columns: 90px 1fr auto;
+      gap: 12px; align-items: start;
+      padding: 10px 0; border-bottom: 1px solid #1c2033;
+    }
+    .up-item:last-child { border-bottom: none; }
+    .up-time { font-size: 0.78rem; color: #5a6278; font-variant-numeric: tabular-nums; padding-top: 2px; }
+    .up-ep { font-size: 0.85rem; font-weight: 600; color: #00d4ff; }
+    .up-series { font-size: 0.75rem; color: #8892a4; margin-top: 2px; }
+    .up-dur { font-size: 0.75rem; color: #5a6278; white-space: nowrap; padding-top: 2px; }
+
+    /* Footer */
+    .footer { border-top: 1px solid #1c2033; padding: 12px 24px; font-size: 0.78rem; color: #3a4258; display: flex; gap: 16px; flex-wrap: wrap; flex-shrink: 0; }
+    .footer a { color: #5a6278; }
+    .footer a:hover { color: #dde4f0; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <a href="/" class="back-link">&#8592; Guide</a>
+    <div class="header-ch">
+      <div class="header-chnum">CH&nbsp;${escHtml(String(channel.channelNum))}</div>
+      <div class="header-chname">${escHtml(channel.name)}</div>
+    </div>
+    <a href="/watch/${encodeURIComponent(channel.id)}" class="watch-btn">&#9654;&nbsp;Watch</a>
+  </header>
+
+  <div class="content">
+    ${channel.description ? `<div class="ch-desc">${escHtml(channel.description)}</div>` : ''}
+
+    <div class="card" id="now-card">
+      <div class="card-label">Now Playing</div>
+      <div class="now-ep" id="now-ep">—</div>
+      <div class="now-series" id="now-series"></div>
+      <div class="now-times" id="now-times"></div>
+      <div class="progress-wrap"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="now-pct" id="now-pct"></div>
+      <div class="now-desc" id="now-desc"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Coming Up</div>
+      <div class="up-list" id="up-list"></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <a href="/channels.m3u">channels.m3u</a>
+    <a href="/xmltv">XMLTV guide</a>
+    <a href="/health">health</a>
+  </footer>
+
+  <script>
+    (function () {
+      var NOW_URL = ${JSON.stringify(nowUrl)};
+
+      function esc(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+
+      function fmtTime(ms) {
+        var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
+        var ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return h + ':' + String(m).padStart(2,'0') + '\\u00a0' + ap;
+      }
+
+      function fmtDur(secs) {
+        var h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60);
+        return h > 0 ? h + 'h ' + m + 'm' : m + ' min';
+      }
+
+      function update(data) {
+        var curr = data.current;
+        if (!curr) return;
+
+        // Episode label: episodeNum · title, or series, or plain title
+        var epLabel = [curr.episodeNum, (curr.seriesTitle && curr.title !== curr.seriesTitle) ? curr.title : (curr.subTitle || '')].filter(Boolean).join(' \\u00b7 ') || curr.seriesTitle || curr.title;
+        document.getElementById('now-ep').textContent     = epLabel || '—';
+        document.getElementById('now-series').textContent = (curr.seriesTitle && curr.title !== curr.seriesTitle) ? curr.seriesTitle : '';
+
+        var startMs = new Date(curr.startedAt).getTime();
+        var endMs   = new Date(curr.endsAt).getTime();
+        var pct     = Math.max(0, Math.min(100, (Date.now() - startMs) / (endMs - startMs) * 100));
+        document.getElementById('progress-fill').style.width = pct.toFixed(1) + '%';
+
+        var rem = Math.max(0, Math.ceil((endMs - Date.now()) / 60000));
+        document.getElementById('now-times').textContent = fmtTime(startMs) + ' \\u2013 ' + fmtTime(endMs);
+        document.getElementById('now-pct').textContent   = Math.round(pct) + '%  \\u2014  ' + rem + ' min remaining';
+        document.getElementById('now-desc').textContent  = curr.description || '';
+
+        var upArr = data.upcoming || [];
+        var rows = upArr.map(function (ep) {
+          var epLine = [ep.episodeNum, (ep.seriesTitle && ep.title !== ep.seriesTitle) ? ep.title : (ep.subTitle || '')].filter(Boolean).join(' \\u00b7 ') || ep.seriesTitle || ep.title;
+          var seriesLine = (ep.seriesTitle && ep.title !== ep.seriesTitle) ? ep.seriesTitle : '';
+          return '<div class="up-item">'
+            + '<div class="up-time">' + esc(fmtTime(new Date(ep.startsAt).getTime())) + '</div>'
+            + '<div><div class="up-ep">' + esc(epLine) + '</div>'
+            + (seriesLine ? '<div class="up-series">' + esc(seriesLine) + '</div>' : '')
+            + '</div>'
+            + '<div class="up-dur">' + esc(fmtDur(ep.duration)) + '</div>'
+            + '</div>';
+        });
+        document.getElementById('up-list').innerHTML = rows.join('') || '<div style="color:#5a6278;font-size:0.85rem">No upcoming data</div>';
+      }
+
+      function poll() {
+        fetch(NOW_URL)
+          .then(function (r) { return r.json(); })
+          .then(update)
+          .catch(function () {});
+      }
+
+      poll();
+      setInterval(poll, 5000);
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // HTTP fetch helper (node:http / node:https, no external deps)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -581,7 +803,7 @@ async function pollChannels(channels, channelCache) {
     channels.map(async ch => {
       try {
         const [nowData, healthData] = await Promise.all([
-          fetchJson(`${ch.url}/now?upcoming=8`),
+          fetchJson(`${ch.url}/now?upcoming=120`),
           fetchJson(`${ch.url}/health`),
         ]);
         channelCache.set(ch.id, {
@@ -650,6 +872,22 @@ function createRequestHandler(directorName, channels, channelCache) {
       const hostname     = host.split(':')[0];
       const externalBase = `http://${hostname}:${ch.port}`;
       const html         = buildPlayerHTML(ch, neon, externalBase);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    }
+
+    // GET /channel/:channelId
+    const channelMatch = pathname.match(/^\/channel\/([^/]+)$/);
+    if (req.method === 'GET' && channelMatch) {
+      const channelId = decodeURIComponent(channelMatch[1]);
+      const ch        = channels.find(c => c.id === channelId);
+      if (!ch) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        return res.end('Channel not found');
+      }
+      const hostname     = host.split(':')[0];
+      const externalBase = `http://${hostname}:${ch.port}`;
+      const html         = buildChannelHTML(ch, externalBase);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(html);
     }
@@ -803,14 +1041,28 @@ if (require.main !== module) {
     pollChannels,
     mergeXmltvDocuments,
   };
-} else if (process.argv[2] === 'generate') {
-  // ── CLI: generate docker-compose ──────────────────────────────────────────
-  // Usage: node src/director.js generate [path/to/director.config.yaml]
-  const cfgPath = process.argv[3] || process.env.DIRECTOR_CONFIG || DEFAULT_CFG_PATH;
+} else if (process.argv[2] === 'mark' || process.argv[2] === 'generate') {
+  // ── CLI: mark (write compose file to disk) ────────────────────────────────
+  // Usage: node src/director.js mark [path/to/director.config.yaml] [--build]
+  //   --build  emit build: directives (from source) instead of pre-built images (default)
+  // 'generate' is a legacy alias that writes to stdout instead of a file.
+  const args      = process.argv.slice(3);
+  const useImages = !args.includes('--build');
+  const cfgPath   = args.find(a => !a.startsWith('-')) || process.env.DIRECTOR_CONFIG || DEFAULT_CFG_PATH;
   try {
-    process.stdout.write(generateCompose(cfgPath));
+    const output = generateCompose(cfgPath, useImages);
+    if (process.argv[2] === 'generate') {
+      process.stdout.write(output);
+    } else {
+      const outPath    = path.join(path.dirname(path.resolve(cfgPath)), 'docker-compose.director.yml');
+      const relOut     = path.relative(process.cwd(), outPath);
+      const displayOut = relOut.startsWith('..') ? outPath : relOut;
+      fs.writeFileSync(outPath, output, 'utf8');
+      process.stderr.write(`Created: ${displayOut}\n`);
+      process.stderr.write(`Run:     docker compose -f ${displayOut} up -d\n`);
+    }
   } catch (e) {
-    error(`generate failed: ${e.message}`);
+    error(`mark failed: ${e.message}`);
     process.exit(1);
   }
 } else {

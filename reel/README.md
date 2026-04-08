@@ -24,12 +24,14 @@ Notes:
 
 ## Quick Start (Docker Compose)
 
-1. Copy the sample config into a `config/` directory:
+From the **repo root** (where `docker-compose.yml` lives):
+
+1. Copy the sample config:
 
 	mkdir -p config
 	cp reel/config.example.yaml config/config.yaml
 
-2. Edit config/config.yaml with your video URLs and durations.
+2. Edit `config/config.yaml` with your video URLs and durations.
 
 3. Start the service:
 

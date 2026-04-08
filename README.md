@@ -1,18 +1,12 @@
 # Reeltime
 
-A self-hosted continuous HLS video streaming suite built with Node.js and ffmpeg.
+A self-hosted continuous HLS video streaming suite.
 
-## Services
+| Service | Description |
+|---------|-------------|
+| **Reel** | Single-channel HLS streamer — loops a YAML playlist as a live m3u8 feed |
+| **Director** | Multi-channel guide — aggregates N Reel instances into one UI, XMLTV, and M3U |
 
-| Service | Description | Docs |
-|---------|-------------|------|
-| **Reel** | Single-channel HLS video streamer — reads a YAML playlist and loops it as a live m3u8 feed | [reel/README.md](reel/README.md) |
-| **Director** | Multi-channel guide aggregator — combines N Reel instances into a single guide UI, XMLTV feed, and M3U tuner | [director/README.md](director/README.md) |
+**Just want to get running?** See the [Director quick start](director/README.md) — all you need is Docker.
 
-## Quick Start (single channel)
-
-See [reel/README.md](reel/README.md).
-
-## Quick Start (multi-channel with Director)
-
-See [director/README.md](director/README.md).
+**Single channel only?** See the [Reel quick start](reel/README.md).

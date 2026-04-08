@@ -822,23 +822,31 @@ function startServer(cfg) {
           videos, loop, loopCount,
         );
         upcoming = win.slice(0, upcomingCount).map(e => ({
-          title:    e.title,
-          duration: e.duration,
-          startsAt: new Date(e.startAt).toISOString(),
-          endsAt:   new Date(e.endAt).toISOString(),
+          title:       e.title,
+          seriesTitle: e.seriesTitle  || '',
+          subTitle:    e.subTitle     || '',
+          episodeNum:  e.episodeNum   || '',
+          description: e.description || '',
+          duration:    e.duration,
+          startsAt:    new Date(e.startAt).toISOString(),
+          endsAt:      new Date(e.endAt).toISOString(),
         }));
       }
 
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         current: {
-          title:     current.title,
-          duration:  current.duration,
-          position:  Math.round(position  * 10) / 10,  // 1 decimal place (seconds)
-          remaining: Math.round(remaining * 10) / 10,
-          progress,                                     // 0.0000 → 1.0000
-          startedAt: new Date(current.startAt).toISOString(),
-          endsAt:    new Date(current.endAt).toISOString(),
+          title:       current.title,
+          seriesTitle: current.seriesTitle  || '',
+          subTitle:    current.subTitle     || '',
+          episodeNum:  current.episodeNum   || '',
+          description: current.description || '',
+          duration:    current.duration,
+          position:    Math.round(position  * 10) / 10,  // 1 decimal place (seconds)
+          remaining:   Math.round(remaining * 10) / 10,
+          progress,                                       // 0.0000 → 1.0000
+          startedAt:   new Date(current.startAt).toISOString(),
+          endsAt:      new Date(current.endAt).toISOString(),
         },
         next: next ? {
           title:    next.title,

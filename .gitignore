@@ -5,11 +5,14 @@
 # User-specific config files (not committed; copy from *.example.yaml to create)
 director.config.yaml
 
-# Generated Docker Compose file (produced by `npm run generate` in director/)
+# Generated Docker Compose file (produced by `npm run mark`)
 docker-compose.director.yml
 
 # Configuration directory (config files and state files live here)
 config/
+
+# Channel configs and state files (created by users, not committed)
+channels/
 
 # State files written by the reel (may land next to config files or in state/)
 state/
