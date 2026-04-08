@@ -13,6 +13,7 @@ config/
 
 # State files written by the reel (may land next to config files or in state/)
 state/
+state.*_reeltime.json
 
 # Dependencies
 node_modules/

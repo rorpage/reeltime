@@ -223,11 +223,15 @@ configs:
 After editing `director.config.yaml`, regenerate `docker-compose.director.yml` whenever you add, remove, or rename channels:
 
 ```bash
-# From the project root (config at project root):
-node director/src/director.js generate director.config.yaml > docker-compose.director.yml
+# From the project root — installs director dependencies automatically:
+npm run generate > docker-compose.director.yml
 
-# Or using the npm script (from inside director/):
+# Or manually from inside director/:
+npm install
 npm run generate > ../docker-compose.director.yml
+
+# Or without npm (Node.js only):
+node director/src/director.js generate director.config.yaml > docker-compose.director.yml
 ```
 
 The generated file includes:

@@ -277,6 +277,8 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
     name: directorName,
     channels: channels.map(ch => {
       const cached = channelCache.get(ch.id) || {};
+      // Strip internal `stream` field from the polled now object
+      const rawNow = cached.now ? (({ stream: _s, ...rest }) => rest)(cached.now) : null;
       const entry = {
         id:         ch.id,
         name:       ch.name,
@@ -285,7 +287,7 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
         stream:     hostname
           ? `http://${hostname}:${ch.port}/stream.m3u8`
           : `${ch.url}/stream.m3u8`,
-        now:        cached.now ? (({ stream: _s, ...rest }) => rest)(cached.now) : null,
+        now:        rawNow,
         online:     cached.online ?? false,
       };
       return entry;
@@ -579,7 +581,7 @@ async function pollChannels(channels, channelCache) {
     channels.map(async ch => {
       try {
         const [nowData, healthData] = await Promise.all([
-          fetchJson(`${ch.url}/now`),
+          fetchJson(`${ch.url}/now?upcoming=8`),
           fetchJson(`${ch.url}/health`),
         ]);
         channelCache.set(ch.id, {

@@ -1,0 +1,13 @@
+{
+  "name": "reeltime",
+  "version": "1.0.0",
+  "description": "Reeltime — self-hosted continuous HLS video streamer with optional Director aggregator",
+  "private": true,
+  "scripts": {
+    "generate": "cd director && npm install --silent && npm run generate"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "Unlicense"
+}

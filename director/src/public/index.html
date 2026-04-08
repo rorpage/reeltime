@@ -12,114 +12,111 @@
       color: #dde4f0;
       font-family: 'Segoe UI', system-ui, sans-serif;
       min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     a { color: inherit; text-decoration: none; }
 
-    /* Header */
+    /* ── Header ────────────────────────────────────────── */
     .header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 24px;
+      padding: 14px 20px;
       background: #0f1117;
-      border-bottom: 1px solid #1c2033;
+      border-bottom: 2px solid #1c2033;
+      flex-shrink: 0;
     }
-    .header-title {
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      color: #00d4ff;
+    .header-title { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.08em; color: #00d4ff; }
+    .header-clock { font-size: 0.88rem; color: #8892a4; font-variant-numeric: tabular-nums; }
+
+    /* ── Guide wrapper ─────────────────────────────────── */
+    .guide-wrap { flex: 1; overflow: auto; }
+
+    /* ── Guide grid using a table-like flex layout ─────── */
+    .guide-grid { display: flex; flex-direction: column; min-width: max-content; }
+
+    /* Header row (time labels) */
+    .guide-header-row { display: flex; position: sticky; top: 0; z-index: 3; background: #0d0f18; border-bottom: 2px solid #1c2033; }
+
+    /* Channel rows */
+    .guide-row { display: flex; border-bottom: 1px solid #1c2033; }
+    .guide-row:last-child { border-bottom: none; }
+
+    /* Left channel-name column */
+    .ch-cell {
+      width: 130px; min-width: 130px; max-width: 130px;
+      padding: 8px 10px;
+      background: #0d0f18;
+      border-right: 2px solid #1c2033;
+      position: sticky; left: 0; z-index: 2;
+      display: flex; flex-direction: column; justify-content: center; gap: 3px;
     }
-    .header-clock {
-      font-size: 0.9rem;
-      color: #8892a4;
+    .ch-cell.corner { z-index: 4; height: 36px; justify-content: center; }
+    .ch-num  { font-size: 0.68rem; color: #5a6278; font-weight: 600; letter-spacing: 0.08em; }
+    .ch-name { font-size: 0.82rem; font-weight: 700; color: #00d4ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ch-watch {
+      display: inline-block; padding: 2px 7px;
+      border: 1px solid #ff2d78; border-radius: 3px;
+      font-size: 0.68rem; color: #ff2d78; font-weight: 600; white-space: nowrap; align-self: flex-start;
+    }
+    .ch-watch:hover { background: #ff2d7822; }
+
+    /* Time-label strip */
+    .time-strip { position: relative; flex: 1; height: 36px; }
+    .time-label {
+      position: absolute; top: 0; height: 100%;
+      display: flex; align-items: center; padding-left: 6px;
+      font-size: 0.72rem; color: #5a6278; white-space: nowrap;
+      border-left: 1px solid #1c2033;
       font-variant-numeric: tabular-nums;
     }
 
-    /* Grid */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 20px;
-      padding: 24px;
-    }
+    /* Program rail */
+    .prog-rail { position: relative; flex: 1; height: 68px; overflow: hidden; }
 
-    /* Card */
-    .card {
-      background: #0f1117;
+    /* Program block */
+    .prog {
+      position: absolute; top: 2px; height: calc(100% - 4px);
+      border-radius: 3px; overflow: hidden;
       border: 1px solid #1c2033;
-      border-radius: 8px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: border-color 0.2s;
+      display: flex; flex-direction: column; padding: 4px 6px;
+      cursor: pointer; transition: filter 0.15s;
+      background: #0f1117;
     }
-    .card:hover { border-color: #2c3050; }
-    .card.offline { opacity: 0.45; }
-    .card-name {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .card-title {
-      font-size: 0.95rem;
-      color: #dde4f0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .progress-wrap {
-      height: 4px;
-      background: #1c2033;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%;
-      border-radius: 2px;
-      transition: width 0.4s;
-    }
-    .card-meta { font-size: 0.78rem; color: #8892a4; }
-    .card-next { font-size: 0.82rem; color: #8892a4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .card-next .label { color: #5a6278; }
-    .offline-badge { color: #8892a4; font-size: 0.85rem; letter-spacing: 0.1em; }
-    .watch-btn {
-      display: inline-block;
-      margin-top: 4px;
-      padding: 6px 14px;
-      border: 1px solid;
-      border-radius: 4px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-      align-self: flex-start;
-      transition: background 0.15s;
-    }
-    .watch-btn:hover { background: #ffffff0d; }
+    .prog:hover { filter: brightness(1.35); z-index: 1; }
+    .prog.prog-current { border-left: 3px solid #39ff14; background: #0c1a0d; }
+    .prog-time  { font-size: 0.62rem; color: #8892a4; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+    .prog-title { font-size: 0.78rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 
-    /* Footer */
-    .footer {
-      border-top: 1px solid #1c2033;
-      padding: 16px 24px;
-      display: flex;
-      gap: 24px;
-      font-size: 0.82rem;
-      color: #5a6278;
-      flex-wrap: wrap;
+    /* Vertical 30-min grid lines */
+    .grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: #1c2033; pointer-events: none; }
+
+    /* Current-time cursor */
+    .now-cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff2d78; pointer-events: none; z-index: 1; }
+    .now-cursor::before {
+      content: ''; position: absolute; top: 0; left: -3px;
+      width: 8px; height: 8px; background: #ff2d78; border-radius: 50%;
     }
+
+    /* Offline placeholder */
+    .prog.prog-offline { background: #0a0c12; color: #5a6278; font-size: 0.8rem; cursor: default; align-items: center; justify-content: center; border-color: #14172a; }
+    .prog.prog-offline:hover { filter: none; }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    .footer { border-top: 1px solid #1c2033; padding: 12px 20px; display: flex; gap: 20px; font-size: 0.8rem; color: #5a6278; flex-wrap: wrap; flex-shrink: 0; }
     .footer a:hover { color: #dde4f0; }
   </style>
 </head>
 <body>
   <header class="header">
     <div class="header-title" id="director-title">&#127916; Reeltime Director</div>
-    <div class="header-clock" id="clock">UTC</div>
+    <div class="header-clock" id="clock"></div>
   </header>
 
-  <main class="grid" id="guide-grid"></main>
+  <div class="guide-wrap">
+    <div class="guide-grid" id="guide-grid"></div>
+  </div>
 
   <footer class="footer">
     <a href="/channels.m3u">&#128250; channels.m3u</a>
@@ -129,56 +126,121 @@
 
   <script>
     (function () {
-      var NEON = ['#00d4ff', '#39ff14', '#ff2d78'];
+      var PX_PER_MIN = 5;   // 5 px per minute → 300 px/hour
+      var WIN_MINS   = 120; // 2-hour visible window
 
       function esc(s) {
         return String(s)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+      }
+
+      function fmtTime(ms) {
+        var d = new Date(ms);
+        var h = d.getHours(), m = d.getMinutes();
+        var ap = h >= 12 ? 'PM' : 'AM';
+        h = h % 12; if (h === 0) h = 12;
+        return h + ':' + String(m).padStart(2,'0') + '\u00a0' + ap;
       }
 
       function updateClock() {
         document.getElementById('clock').textContent = new Date().toLocaleString();
       }
 
-      function renderCards(data) {
+      function winStartMs(now) {
+        return Math.floor(now / (30 * 60 * 1000)) * (30 * 60 * 1000);
+      }
+
+      function pxFromMs(ms, wStart) {
+        return (ms - wStart) / 60000 * PX_PER_MIN;
+      }
+
+      function buildProgHtml(prog, wStart, wEnd, isCurrent) {
+        var startMs = new Date(prog.startsAt || prog.startedAt).getTime();
+        var endMs   = new Date(prog.endsAt).getTime();
+        if (endMs <= wStart || startMs >= wEnd) return '';
+
+        var leftPx  = Math.max(0, pxFromMs(startMs, wStart));
+        var rightPx = Math.min(pxFromMs(wEnd, wStart), pxFromMs(endMs, wStart));
+        var widthPx = Math.max(3, rightPx - leftPx) - 2; // 1px gap each side
+
+        var cls = 'prog' + (isCurrent ? ' prog-current' : '');
+        return '<div class="' + cls + '" style="left:' + (leftPx + 1) + 'px;width:' + widthPx + 'px">' +
+          '<div class="prog-time">' + fmtTime(startMs) + '</div>' +
+          '<div class="prog-title">' + esc(prog.title) + '</div>' +
+          '</div>';
+      }
+
+      function renderGuide(data) {
         if (data.name) {
           document.title = data.name;
           document.getElementById('director-title').textContent = '\uD83C\uDFAC ' + data.name;
         }
 
-        var html = (data.channels || []).map(function (ch, i) {
-          var online = ch.online || false;
-          var now    = ch.now    || null;
+        var now    = Date.now();
+        var wStart = winStartMs(now);
+        var wEnd   = wStart + WIN_MINS * 60 * 1000;
+        var totalPx = WIN_MINS * PX_PER_MIN;
+        var nowPx   = Math.max(0, Math.min(totalPx, pxFromMs(now, wStart)));
+
+        var html = '';
+
+        // ── Time header row ────────────────────────────────────────────
+        html += '<div class="guide-header-row">';
+        html += '<div class="ch-cell corner"><span style="font-size:0.72rem;color:#5a6278">CHANNEL</span></div>';
+        html += '<div class="time-strip" style="width:' + totalPx + 'px">';
+        // Now-cursor in the header strip too
+        html += '<div class="now-cursor" style="left:' + nowPx + 'px"></div>';
+        for (var m = 0; m <= WIN_MINS; m += 30) {
+          html += '<div class="time-label" style="left:' + (m * PX_PER_MIN) + 'px">' + fmtTime(wStart + m * 60 * 1000) + '</div>';
+        }
+        html += '</div></div>'; // time-strip, header-row
+
+        // ── Channel rows ───────────────────────────────────────────────
+        (data.channels || []).forEach(function (ch) {
+          var online  = ch.online || false;
+          var nowData = ch.now    || null;
+          var currObj = nowData && nowData.current;
+          var upArr   = (nowData && nowData.upcoming) || [];
+
+          // Left cell
+          html += '<div class="guide-row">';
+          html += '<div class="ch-cell">' +
+            '<div class="ch-num">CH\u00a0' + (ch.channelNum || '') + '</div>' +
+            '<div class="ch-name">' + esc(ch.name) + '</div>' +
+            '<a class="ch-watch" href="/watch/' + encodeURIComponent(ch.id) + '">\u25BA\u00a0WATCH</a>' +
+            '</div>';
+
+          // Program rail
+          html += '<div class="prog-rail" style="width:' + totalPx + 'px">';
+
+          // 30-min vertical grid lines
+          for (var gm = 30; gm < WIN_MINS; gm += 30) {
+            html += '<div class="grid-line" style="left:' + (gm * PX_PER_MIN) + 'px"></div>';
+          }
+          // Now-cursor
+          html += '<div class="now-cursor" style="left:' + nowPx + 'px"></div>';
 
           if (!online) {
-            return '<div class="card offline">' +
-              '<div class="card-name" style="color:' + NEON[0] + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
-              '<div class="offline-badge">&#9679; OFFLINE</div>' +
-              '</div>';
+            html += '<div class="prog prog-offline" style="left:1px;width:' + (totalPx - 2) + 'px">\u25cf\u00a0OFFLINE</div>';
+          } else {
+            // Current program
+            if (currObj && currObj.startedAt && currObj.endsAt) {
+              html += buildProgHtml({
+                title:    currObj.title,
+                startsAt: currObj.startedAt,
+                endsAt:   currObj.endsAt,
+              }, wStart, wEnd, true);
+            }
+            // Upcoming programs
+            upArr.forEach(function (ep) {
+              html += buildProgHtml(ep, wStart, wEnd, false);
+            });
           }
 
-          var curr     = now && now.current;
-          var title    = curr && curr.title    ? esc(curr.title)    : '&mdash;';
-          var progress = curr && curr.progress != null ? Math.round(curr.progress * 100) : 0;
-          var rem      = curr && curr.remaining != null ? Math.ceil(curr.remaining / 60) : 0;
-          var next     = now && now.next && now.next.title ? esc(now.next.title) : '&mdash;';
-
-          return '<div class="card">' +
-            '<div class="card-name" style="color:' + NEON[0] + '"><span class="ch-num" style="opacity:0.55">CH ' + ch.channelNum + '</span> ' + esc(ch.name) + '</div>' +
-            '<div class="card-title">' + title + '</div>' +
-            '<div class="progress-wrap">' +
-              '<div class="progress-bar" style="width:' + progress + '%;background:' + NEON[1] + '"></div>' +
-            '</div>' +
-            '<div class="card-meta">' + progress + '% &mdash; ' + rem + ' min remaining</div>' +
-            '<div class="card-next"><span class="label">Next:</span> ' + next + '</div>' +
-            '<a class="watch-btn" href="/watch/' + encodeURIComponent(ch.id) + '" ' +
-              'style="border-color:' + NEON[2] + ';color:' + NEON[2] + '">&#9654; WATCH</a>' +
-            '</div>';
-        }).join('\n');
+          html += '</div>'; // prog-rail
+          html += '</div>'; // guide-row
+        });
 
         document.getElementById('guide-grid').innerHTML = html;
       }
@@ -186,7 +248,7 @@
       function fetchAndRender() {
         fetch('/now')
           .then(function (r) { return r.json(); })
-          .then(renderCards)
+          .then(renderGuide)
           .catch(function () {});
       }
 

@@ -810,6 +810,25 @@ function startServer(cfg) {
         next = peek[0] ?? null;
       }
 
+      // Optional: return an array of upcoming entries for the guide view
+      // ?upcoming=N  (0 = disabled, max 20)
+      const upcomingCount = Math.min(20, Math.max(0, +(params.get('upcoming') ?? 0)));
+      let   upcoming      = [];
+      if (upcomingCount > 0) {
+        // Use a 4-hour look-ahead window to source enough entries
+        const win = getScheduleWindow(
+          current.endAt,
+          current.endAt + 4 * 3600 * 1000,
+          videos, loop, loopCount,
+        );
+        upcoming = win.slice(0, upcomingCount).map(e => ({
+          title:    e.title,
+          duration: e.duration,
+          startsAt: new Date(e.startAt).toISOString(),
+          endsAt:   new Date(e.endAt).toISOString(),
+        }));
+      }
+
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         current: {
@@ -826,6 +845,7 @@ function startServer(cfg) {
           duration: next.duration,
           startsAt: new Date(next.startAt).toISOString(),
         } : null,
+        ...(upcomingCount > 0 && { upcoming }),
         stream: `http://${host}/stream.m3u8`,
       }));
       return;

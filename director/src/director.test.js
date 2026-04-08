@@ -605,3 +605,61 @@ test('buildHealthResponse — uncached channel is offline', () => {
   assert.equal(result.channels[1].online, false);
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. buildAggregatedNow — upcoming array passthrough
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('buildAggregatedNow — passes through upcoming array', () => {
+  const cache = new Map();
+  cache.set('channel_1', {
+    online: true,
+    now: {
+      current:  { title: 'Now',  startedAt: '2026-01-01T00:00:00.000Z', endsAt: '2026-01-01T00:10:00.000Z', progress: 0.5 },
+      upcoming: [
+        { title: 'Next',   startsAt: '2026-01-01T00:10:00.000Z', endsAt: '2026-01-01T00:20:00.000Z', duration: 600 },
+        { title: 'After',  startsAt: '2026-01-01T00:20:00.000Z', endsAt: '2026-01-01T00:30:00.000Z', duration: 600 },
+      ],
+    },
+  });
+
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
+  const ch1 = result.channels.find(c => c.id === 'channel_1');
+  assert.ok(Array.isArray(ch1.now.upcoming));
+  assert.equal(ch1.now.upcoming.length, 2);
+  assert.equal(ch1.now.upcoming[0].title, 'Next');
+});
+
+test('buildAggregatedNow — upcoming absent when not returned by reel', () => {
+  const cache = new Map();
+  cache.set('channel_1', {
+    online: true,
+    now: { current: { title: 'Now', progress: 0.5 }, next: null },
+  });
+
+  const result = buildAggregatedNow('My Director', sampleChannels, cache);
+  const ch1 = result.channels.find(c => c.id === 'channel_1');
+  assert.equal(ch1.now.upcoming, undefined);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 14. TV guide HTML structure
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('index.html — contains prog-rail for TV grid layout', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('prog-rail'));
+});
+
+test('index.html — contains time-strip for time header', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('time-strip'));
+});
+
+test('index.html — contains upcoming array handling in JS', () => {
+  const indexPath = path.join(__dirname, 'public', 'index.html');
+  const html = fs.readFileSync(indexPath, 'utf8');
+  assert.ok(html.includes('upcoming'));
+});
+
