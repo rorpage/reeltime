@@ -51,6 +51,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}${{ matrix.image_suffix }}
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix={{branch}}-
             type=ref,event=branch
             type=semver,pattern={{version}}
