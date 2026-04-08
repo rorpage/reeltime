@@ -4,7 +4,7 @@
   "description": "Reeltime — self-hosted continuous HLS video streamer with optional Director aggregator",
   "private": true,
   "scripts": {
-    "generate": "cd director && npm install --silent && npm run generate"
+    "generate": "npm install --prefix director --silent && node director/src/director.js generate director.config.yaml"
   },
   "engines": {
     "node": ">=20.0.0"
