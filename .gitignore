@@ -2,8 +2,14 @@
 .env
 .env.local
 
+# User-specific config files (not committed; copy from *.example.yaml to create)
+director.config.yaml
+
 # Configuration directory (config files and state files live here)
 config/
+
+# State files written by the reel (may land next to config files or in state/)
+state/
 
 # Dependencies
 node_modules/

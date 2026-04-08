@@ -358,7 +358,8 @@ test('generateCompose — contains volume mounts for channel configs', () => {
   const { ch1, ch2, dir } = makeDirectorCfg();
   const out = generateCompose(dir);
   [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
-  assert.ok(out.includes('/config/config.yaml:ro'));
+  // Config directory (not file) is mounted at /config
+  assert.ok(out.includes(':/config\n'));
 });
 
 test('generateCompose — contains volume mount for director config', () => {
@@ -378,13 +379,16 @@ test('generateCompose — contains depends_on for each channel', () => {
   assert.ok(out.includes('- reeltime-channel_2'));
 });
 
-test('generateCompose — adds state volume and STATE_PATH for each channel', () => {
+test('generateCompose — mounts config directory and sets CONFIG_PATH for each channel', () => {
   const { ch1, ch2, dir } = makeDirectorCfg();
   const out = generateCompose(dir);
   [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
-  assert.ok(out.includes('./state/reeltime-channel_1:/state'));
-  assert.ok(out.includes('./state/reeltime-channel_2:/state'));
-  assert.ok(out.includes('STATE_PATH:       "/state/reeltime.json"'));
+  // The directory containing each channel config is mounted at /config
+  // so the reel can write state files alongside the config (no separate state volume).
+  assert.ok(out.includes(':/config\n'));
+  assert.ok(out.includes('CONFIG_PATH:'));
+  assert.ok(!out.includes('STATE_PATH'));
+  assert.ok(!out.includes('./state/reeltime-'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

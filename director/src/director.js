@@ -203,7 +203,12 @@ function generateCompose(directorConfigPath) {
 
   // ── reeltime services ─────────────────────────────────────────────────────
   cfg.channels.forEach(ch => {
-    const chRel = rel(ch.configPath);
+    // Mount the directory that contains the channel config so the reel can
+    // write its state file alongside the config (same pattern as standalone).
+    // State lands at <configDir>/state.<channel_id>_reeltime.json on the host.
+    const chFile   = path.resolve(ch.configPath);
+    const chDirRel = rel(path.dirname(chFile));
+    const chBase   = path.basename(chFile);
     lines.push(
       '',
       `  reeltime-${ch.id}:`,
@@ -215,11 +220,10 @@ function generateCompose(directorConfigPath) {
       '    ports:',
       `      - "${ch.port}:8080"`,
       '    volumes:',
-      `      - ${chRel}:/config/config.yaml:ro`,
-      `      - ./state/reeltime-${ch.id}:/state`,
+      `      - ${chDirRel}:/config`,
       '    environment:',
       '      PORT:             "8080"',
-      `      STATE_PATH:       "/state/reeltime.json"`,
+      `      CONFIG_PATH:      "/config/${chBase}"`,
       '      # 604800 s = 7 days; prevents stale state from being applied after a long downtime',
       '      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"',
       '      HLS_SEG:          "${HLS_SEG:-6}"',

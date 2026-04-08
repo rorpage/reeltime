@@ -56,9 +56,12 @@ services:
     ports:
       - "10001:8080"
     volumes:
-      - ./channel1.config.yaml:/config/config.yaml:ro
+      - .:/config
     environment:
       PORT:             "8080"
+      CONFIG_PATH:      "/config/channel1.config.yaml"
+      # 604800 s = 7 days; prevents stale state from being applied after a long downtime
+      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"
       HLS_SEG:          "${HLS_SEG:-6}"
       HLS_SIZE:         "${HLS_SIZE:-10}"
       RESOLUTION:       "${RESOLUTION:-1280:720}"
@@ -83,9 +86,12 @@ services:
     ports:
       - "10002:8080"
     volumes:
-      - ./channel2.config.yaml:/config/config.yaml:ro
+      - .:/config
     environment:
       PORT:             "8080"
+      CONFIG_PATH:      "/config/channel2.config.yaml"
+      # 604800 s = 7 days; prevents stale state from being applied after a long downtime
+      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"
       HLS_SEG:          "${HLS_SEG:-6}"
       HLS_SIZE:         "${HLS_SIZE:-10}"
       RESOLUTION:       "${RESOLUTION:-1280:720}"
