@@ -109,23 +109,61 @@ proportional to avoid quality loss.
 - RAM: ~850 MB (Chromium + ffmpeg + Node.js)
 - CPU: 1 core (at `FRAME_RATE=1`; increase for higher frame rates)
 
+## Using with Director
+
+Scout integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
+
+```yaml
+configs:
+  - ./channels/my_reel_channel/config.yaml   # existing reel channel
+
+  - name:        "My Dashboard"
+    type:        scout
+    description: "Live dashboard capture"
+    environment:
+      CAPTURE_URL: "https://example.com/dashboard"
+      FRAME_RATE:  "2"
+```
+
+Then re-run `mark` to regenerate your compose file.
+
 ## `/now` response
 
-Since Scout captures a live, continuous stream there is no "next" item and no
-fixed duration:
+Scout returns clock-aligned 1-hour blocks using `CHANNEL_NAME` as the title and
+`CAPTURE_URL` as the description. Blocks are always snapped to the hour boundary
+(1:00–2:00, 2:00–3:00, …) regardless of when the container started.
+
+Supports `?upcoming=N` to include N future blocks — used by Director to fill the
+2-hour guide window.
 
 ```json
 {
   "current": {
-    "title":     "My Dashboard",
-    "duration":  null,
-    "position":  3601.2,
-    "remaining": 0,
-    "progress":  1,
-    "startedAt": "2024-01-01T00:00:00.000Z",
-    "endsAt":    null
+    "title":       "My Dashboard",
+    "seriesTitle": "",
+    "subTitle":    "",
+    "episodeNum":  "",
+    "description": "https://example.com/dashboard",
+    "duration":    3600,
+    "position":    742.3,
+    "remaining":   2857.7,
+    "progress":    0.2062,
+    "startedAt":   "2026-04-08T17:00:00.000Z",
+    "endsAt":      "2026-04-08T18:00:00.000Z"
   },
-  "next":   null,
+  "next": {
+    "title":    "My Dashboard",
+    "duration": 3600,
+    "startsAt": "2026-04-08T18:00:00.000Z"
+  },
+  "upcoming": [
+    {
+      "title":    "My Dashboard",
+      "duration": 3600,
+      "startsAt": "2026-04-08T18:00:00.000Z",
+      "endsAt":   "2026-04-08T19:00:00.000Z"
+    }
+  ],
   "stream": "http://host/stream.m3u8"
 }
 ```

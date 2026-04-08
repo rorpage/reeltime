@@ -26,6 +26,7 @@ const fs          = require('node:fs');
 const path        = require('node:path');
 const http        = require('node:http');
 const puppeteer   = require('puppeteer-core');
+const { escHtml, escXML } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -94,20 +95,6 @@ let streamStart  = null;   // epoch-ms when ffmpeg first declared ready
 
 const waitMs = ms => new Promise(r => setTimeout(r, ms));
 
-function escXml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function escHtml(s) {
-  return String(s).replace(/[&<>"']/g,
-    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // XMLTV
 // ─────────────────────────────────────────────────────────────────────────────
@@ -123,7 +110,7 @@ function buildXMLTV(host, hours) {
   const toMs    = now + h * 3_600_000;
 
   const iconUrl  = CFG.channelIcon || '';
-  const iconAttr = iconUrl ? `\n    <icon src="${escXml(iconUrl)}"/>` : '';
+  const iconAttr = iconUrl ? `\n    <icon src="${escXML(iconUrl)}"/>` : '';
 
   // Round down to the nearest hour boundary
   const startHour = new Date(Math.floor(fromMs / 3_600_000) * 3_600_000);
@@ -136,17 +123,17 @@ function buildXMLTV(host, hours) {
   let programmes = '';
   for (let t = startHour.getTime(); t < toMs; t += 3_600_000) {
     const stop = t + 3_600_000;
-    programmes += `  <programme start="${toXMLTVDate(t)}" stop="${toXMLTVDate(stop)}" channel="${escXml(CFG.channelId)}">
-    <title lang="en">${escXml(CFG.channelName)}</title>
-    <desc lang="en">${escXml(CFG.captureUrl)}</desc>
+    programmes += `  <programme start="${toXMLTVDate(t)}" stop="${toXMLTVDate(stop)}" channel="${escXML(CFG.channelId)}">
+    <title lang="en">${escXML(CFG.channelName)}</title>
+    <desc lang="en">${escXML(CFG.captureUrl)}</desc>
   </programme>\n`;
   }
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE tv SYSTEM "xmltv.dtd">
-<tv source-info-name="${escXml(CFG.channelName)}" generator-info-name="scout">
-  <channel id="${escXml(CFG.channelId)}">
-    <display-name lang="en">${escXml(CFG.channelName)}</display-name>${iconAttr}
+<tv source-info-name="${escXML(CFG.channelName)}" generator-info-name="scout">
+  <channel id="${escXML(CFG.channelId)}">
+    <display-name lang="en">${escXML(CFG.channelName)}</display-name>${iconAttr}
   </channel>
 ${programmes}</tv>`;
 }
@@ -157,7 +144,7 @@ ${programmes}</tv>`;
 
 function buildM3U(host) {
   const iconUrl  = CFG.channelIcon || '';
-  const logoAttr = iconUrl ? ` tvg-logo="${iconUrl.replace(/"/g, '&quot;')}"` : '';
+  const logoAttr = iconUrl ? ` tvg-logo="${escXML(iconUrl)}"` : '';
   return [
     `#EXTM3U x-tvg-url="http://${host}/xmltv"`,
     `#EXTINF:-1 tvg-id="${CFG.channelId}" tvg-name="${CFG.channelName}"${logoAttr}` +
@@ -240,12 +227,12 @@ function buildPlayerHTML() {
           .then(function (r) { return r.json(); })
           .then(function (d) {
             if (!d.current) { nowEl.textContent = 'Stream starting…'; return; }
-            var hrs  = Math.floor(d.current.position / 3600);
-            var mins = Math.floor((d.current.position % 3600) / 60);
-            var secs = Math.floor(d.current.position % 60);
-            var up   = (hrs ? hrs + 'h ' : '') + (mins ? mins + 'm ' : '') + secs + 's';
-            nowEl.textContent = '▶  ' + d.current.title + '  ·  live  ·  uptime: ' + up;
-            barEl.style.width = '100%';
+            var pct  = Math.round(d.current.progress * 100);
+            var mins = Math.round(d.current.remaining / 60);
+            var text = '▶  ' + d.current.title + '  ·  live  ·  ' + mins + ' min remaining';
+            if (d.next) text += '   ·   Up next: ' + d.next.title;
+            nowEl.textContent = text;
+            barEl.style.width = pct + '%';
           })
           .catch(function () { nowEl.textContent = ''; });
       }
@@ -500,20 +487,51 @@ function startServer() {
         res.end(JSON.stringify({ status: 'starting', message: 'Stream not yet started' }));
         return;
       }
-      const position = Math.max(0, (Date.now() - streamStart) / 1000);
+      const upcomingCount = Math.min(120, Math.max(0, +(params.get('upcoming') ?? 0)));
+      const nowMs      = Date.now();
+      // Snap to the current hour boundary so blocks are always clock-aligned
+      const blockStart = Math.floor(nowMs / 3_600_000) * 3_600_000;
+      const blockEnd   = blockStart + 3_600_000;
+      const position   = (nowMs - blockStart) / 1000;
+      const remaining  = (blockEnd - nowMs) / 1000;
+      const progress   = Math.round((position / 3600) * 10000) / 10000;
+
+      const makeBlock = () => ({
+        title:       CFG.channelName,
+        seriesTitle: '',
+        subTitle:    '',
+        episodeNum:  '',
+        description: CFG.captureUrl,
+        duration:    3600,
+      });
+
+      const upcoming = [];
+      for (let i = 1; i <= upcomingCount; i++) {
+        const start = blockEnd + (i - 1) * 3_600_000;
+        upcoming.push({
+          ...makeBlock(),
+          startsAt: new Date(start).toISOString(),
+          endsAt:   new Date(start + 3_600_000).toISOString(),
+        });
+      }
+
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         current: {
-          title:     CFG.channelName,
-          duration:  null,                               // live — no fixed duration
-          position:  Math.round(position * 10) / 10,    // uptime in seconds (1 dp)
-          remaining: 0,                                  // live stream — never ends
-          progress:  1,                                  // live = always "full"
-          startedAt: new Date(streamStart).toISOString(),
-          endsAt:    null,
+          ...makeBlock(),
+          position:  Math.round(position  * 10) / 10,
+          remaining: Math.round(remaining * 10) / 10,
+          progress,
+          startedAt: new Date(blockStart).toISOString(),
+          endsAt:    new Date(blockEnd).toISOString(),
         },
-        next:    null,
-        stream:  `http://${host}/stream.m3u8`,
+        next: {
+          title:    CFG.channelName,
+          duration: 3600,
+          startsAt: new Date(blockEnd).toISOString(),
+        },
+        ...(upcomingCount > 0 && { upcoming }),
+        stream: `http://${host}/stream.m3u8`,
       }));
       return;
     }

@@ -24,6 +24,12 @@ jobs:
           - service: director
             dockerfile: director/Dockerfile
             image_suffix: -director
+          - service: scout
+            dockerfile: scout/Dockerfile
+            image_suffix: -scout
+          - service: boom
+            dockerfile: boom/Dockerfile
+            image_suffix: -boom
 
     steps:
       - name: Checkout code

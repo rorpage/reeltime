@@ -8,14 +8,16 @@
  *
  * Endpoints
  * ─────────────────────────────────────────────────
+ *  GET /               Web player  (HLS.js + now-playing ticker)
  *  GET /stream.m3u8    Live HLS playlist
  *  GET /seg_*.ts       MPEG-TS segments
  *  GET /channels.m3u   M3U tuner (Channels DVR / Jellyfin / Plex)
  *  GET /playlist.m3u   Alias for /channels.m3u
- *  GET /xmltv          XMLTV guide  (?hours=1-24)
+ *  GET /xmltv          XMLTV guide  (?hours=1-24, default 4)
  *  GET /xmltv.xml      Alias for /xmltv
  *  GET /guide.xml      Alias for /xmltv
  *  GET /logo/*         Logo image files
+ *  GET /now            JSON now-playing  (?upcoming=N)
  *  GET /health         JSON health check
  */
 
@@ -24,13 +26,14 @@ const fs        = require('node:fs');
 const path      = require('node:path');
 const http      = require('node:http');
 const puppeteer = require('puppeteer-core');
+const { escHtml, escXML } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CFG = {
-  port:           +(process.env.PORT            || 9798),
+  port:           +(process.env.PORT            || 8080),
   hlsDir:           process.env.HLS_DIR         || '/tmp/hls',
   musicDir:         process.env.MUSIC_DIR       || '/music',
   logoDir:          process.env.LOGO_DIR        || '/logo',
@@ -100,12 +103,88 @@ function shuffleArray(arr) {
   return a;
 }
 
-function escXml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+// ─────────────────────────────────────────────────────────────────────────────
+// Web player HTML
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildPlayerHTML() {
+  const n = escHtml(CFG.channelName);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${n}</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      background: #0d0d0d; color: #f0f0f0; font-family: system-ui, sans-serif;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100vh; gap: .75rem; padding: 1rem;
+    }
+    h1    { font-size: 1.1rem; font-weight: 500; opacity: .6 }
+    video {
+      width: 100%; max-width: 920px; border-radius: 6px;
+      background: #000; box-shadow: 0 6px 40px rgba(0,0,0,.6);
+    }
+    #now  {
+      font-size: .82rem; opacity: .55; min-height: 1.3em;
+      text-align: center; letter-spacing: .01em;
+    }
+    #prog-wrap {
+      width: 100%; max-width: 920px; height: 3px;
+      background: #333; border-radius: 2px; overflow: hidden;
+    }
+    #prog-bar { height: 100%; background: #e50; width: 0%; transition: width .5s linear }
+    small { font-size: .72rem; opacity: .28 }
+    code  { background: #222; padding: 2px 6px; border-radius: 3px }
+  </style>
+</head>
+<body>
+  <h1>📺 ${n}</h1>
+  <video id="v" controls autoplay muted playsinline></video>
+  <div id="prog-wrap"><div id="prog-bar"></div></div>
+  <div id="now">Loading…</div>
+  <small>Stream: <code>/stream.m3u8</code> &nbsp;·&nbsp; Guide: <code>/xmltv</code> &nbsp;·&nbsp; Tuner: <code>/channels.m3u</code></small>
+  <script>
+    (function () {
+      var v = document.getElementById('v'), src = '/stream.m3u8';
+      if (Hls.isSupported()) {
+        var hls = new Hls({ liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 6, enableWorker: true });
+        hls.loadSource(src);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () { v.play().catch(function () {}); });
+      } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = src; v.play().catch(function () {});
+      } else {
+        document.body.innerHTML += '<p style="color:red">HLS not supported in this browser.</p>';
+      }
+
+      var nowEl = document.getElementById('now');
+      var barEl = document.getElementById('prog-bar');
+
+      function fetchNow() {
+        fetch('/now')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.current) { nowEl.textContent = 'Stream starting…'; return; }
+            var pct  = Math.round(d.current.progress * 100);
+            var mins = Math.round(d.current.remaining / 60);
+            var text = '▶  ' + d.current.title + '  ·  live  ·  ' + mins + ' min remaining';
+            if (d.next) text += '   ·   Up next: ' + d.next.title;
+            nowEl.textContent = text;
+            barEl.style.width = pct + '%';
+          })
+          .catch(function () { nowEl.textContent = ''; });
+      }
+
+      fetchNow();
+      setInterval(fetchNow, 5000);
+    }());
+  </script>
+</body>
+</html>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -151,19 +230,19 @@ function buildXMLTV(host, hours = 24) {
   let xml =
     `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<!DOCTYPE tv SYSTEM "xmltv.dtd">\n<tv>\n` +
-    `<channel id="${escXml(CFG.channelId)}">\n` +
-    `  <display-name>${escXml(CFG.channelName)}</display-name>\n` +
-    `  <icon src="${escXml(iconUrl)}" />\n` +
+    `<channel id="${escXML(CFG.channelId)}">\n` +
+    `  <display-name>${escXML(CFG.channelName)}</display-name>\n` +
+    `  <icon src="${escXML(iconUrl)}" />\n` +
     `</channel>\n`;
 
   for (let i = 0; i < h; i++) {
     const start = new Date(now.getTime() + i * 3_600_000);
     const stop  = new Date(start.getTime() + 3_600_000);
     xml +=
-      `<programme start="${fmtDate(start)}" stop="${fmtDate(stop)}" channel="${escXml(CFG.channelId)}">\n` +
+      `<programme start="${fmtDate(start)}" stop="${fmtDate(stop)}" channel="${escXML(CFG.channelId)}">\n` +
       `  <title lang="en">Local Weather</title>\n` +
       `  <desc lang="en">Enjoy your local weather with a touch of nostalgia.</desc>\n` +
-      `  <icon src="${escXml(iconUrl)}" />\n` +
+      `  <icon src="${escXML(iconUrl)}" />\n` +
       `</programme>\n`;
   }
 
@@ -179,13 +258,13 @@ function buildM3U(host) {
   const iconUrl = CFG.channelIcon || `${baseUrl}/logo/ws4000.png`;
   return [
     '#EXTM3U',
-    `#EXTINF:-1 channel-id="${escXml(CFG.channelId)}" tvg-id="${escXml(CFG.channelId)}"` +
-      ` tvg-channel-no="${escXml(CFG.channelNumber)}"` +
-      ` tvg-logo="${escXml(iconUrl)}"` +
+    `#EXTINF:-1 channel-id="${escXML(CFG.channelId)}" tvg-id="${escXML(CFG.channelId)}"` +
+      ` tvg-channel-no="${escXML(CFG.channelNumber)}"` +
+      ` tvg-logo="${escXML(iconUrl)}"` +
       ` tvc-guide-placeholders="3600"` +
       ` tvc-guide-title="Local Weather"` +
       ` tvc-guide-description="Enjoy your local weather with a touch of nostalgia."` +
-      ` tvc-guide-art="${escXml(iconUrl)}",${escXml(CFG.channelName)}`,
+      ` tvc-guide-art="${escXML(iconUrl)}",${escXML(CFG.channelName)}`,
     `${baseUrl}/stream.m3u8`,
     '',
   ].join('\n');
@@ -422,15 +501,85 @@ function serve(req, res) {
   }
 
   if (pathname === '/xmltv' || pathname === '/xmltv.xml' || pathname === '/guide.xml') {
-    const hours = parseInt(u.searchParams.get('hours') || '24', 10);
+    const hours = parseInt(u.searchParams.get('hours') || '4', 10);
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
     res.end(buildXMLTV(host, hours));
     return;
   }
 
   if (pathname === '/health') {
-    res.writeHead(isReady ? 200 : 503, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ ready: isReady, ws4kp: WS4KP_URL }));
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status:  'ok',
+      uptime:  Math.floor(process.uptime()),
+      capture: {
+        ws4kp:  WS4KP_URL,
+        ready:  isReady,
+      },
+      endpoints: {
+        player:   `http://${host}/`,
+        stream:   `http://${host}/stream.m3u8`,
+        now:      `http://${host}/now`,
+        xmltv:    `http://${host}/xmltv`,
+        channels: `http://${host}/channels.m3u`,
+      },
+    }));
+    return;
+  }
+
+  if (pathname === '/now') {
+    const upcomingCount = Math.min(120, Math.max(0, +(u.searchParams.get('upcoming') ?? 0)));
+    const nowMs         = Date.now();
+    // Snap to the current hour boundary so blocks are always clock-aligned
+    const blockStart    = Math.floor(nowMs / 3_600_000) * 3_600_000;
+    const blockEnd      = blockStart + 3_600_000;
+    const position      = (nowMs - blockStart) / 1000;
+    const remaining     = (blockEnd - nowMs) / 1000;
+    const progress      = Math.round((position / 3600) * 10000) / 10000;
+
+    const makeBlock = (startMs) => ({
+      title:       'Live Weather',
+      seriesTitle: '',
+      subTitle:    '',
+      episodeNum:  '',
+      description: CFG.channelName,
+      duration:    3600,
+    });
+
+    const upcoming = [];
+    for (let i = 1; i <= upcomingCount; i++) {
+      const start = blockEnd + (i - 1) * 3_600_000;
+      upcoming.push({
+        ...makeBlock(start),
+        startsAt: new Date(start).toISOString(),
+        endsAt:   new Date(start + 3_600_000).toISOString(),
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      current: {
+        ...makeBlock(blockStart),
+        position:  Math.round(position  * 10) / 10,
+        remaining: Math.round(remaining * 10) / 10,
+        progress,
+        startedAt: new Date(blockStart).toISOString(),
+        endsAt:    new Date(blockEnd).toISOString(),
+      },
+      next: {
+        title:    makeBlock(blockEnd).title,
+        duration: 3600,
+        startsAt: new Date(blockEnd).toISOString(),
+      },
+      ...(upcomingCount > 0 && { upcoming }),
+      stream: `http://${host}/stream.m3u8`,
+    }));
+    return;
+  }
+
+  if (pathname === '/' || pathname === '/player') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(buildPlayerHTML());
     return;
   }
 

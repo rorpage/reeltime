@@ -13,8 +13,8 @@ Plex, Emby, xTeVe, Threadfin, and any IPTV player that supports M3U/XMLTV.
    JPEG image stream.
 3. ffmpeg mixes the video with looping MP3 background music and outputs HLS
    segments to disk.
-4. A lightweight Node.js HTTP server serves the M3U playlist, XMLTV guide, HLS
-   stream, and health endpoint.
+4. A lightweight Node.js HTTP server serves the stream, M3U playlist, XMLTV
+   guide, web player, and health endpoint.
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ docker run -d \
   --restart unless-stopped \
   --memory="1096m" \
   --cpus="1.0" \
-  -p 9798:9798 \
+  -p 8080:8080 \
   -e ZIP_CODE=63101 \
   -e WS4KP_HOST=192.168.1.100 \
   -e WS4KP_PORT=8080 \
@@ -61,19 +61,76 @@ docker run -d \
 
 | Endpoint | Description |
 |---|---|
+| `GET /` | Embedded HLS.js web player with now-playing ticker |
 | `GET /stream.m3u8` | Live HLS playlist |
+| `GET /now` | JSON now-playing — 1-hour "Live Weather" blocks (`?upcoming=N`) |
 | `GET /channels.m3u` | M3U tuner (Channels DVR / Jellyfin / Plex) |
 | `GET /playlist.m3u` | Alias for `/channels.m3u` |
-| `GET /xmltv` | XMLTV guide (`?hours=1-24`, default 24) |
+| `GET /xmltv` | XMLTV guide (`?hours=1-24`, default 4) |
 | `GET /xmltv.xml` | Alias for `/xmltv` |
 | `GET /guide.xml` | Alias for `/xmltv` |
 | `GET /health` | JSON health check |
+
+## `/now` response
+
+Boom returns clock-aligned 1-hour "Live Weather" blocks snapped to the hour
+boundary (1:00–2:00, 2:00–3:00, …) regardless of when the container started.
+
+Supports `?upcoming=N` to include N future blocks — used by Director to fill
+the 2-hour guide window.
+
+```json
+{
+  "current": {
+    "title":       "Live Weather",
+    "seriesTitle": "",
+    "subTitle":    "",
+    "episodeNum":  "",
+    "description": "WeatherStar 4000",
+    "duration":    3600,
+    "position":    742.3,
+    "remaining":   2857.7,
+    "progress":    0.2062,
+    "startedAt":   "2026-04-08T17:00:00.000Z",
+    "endsAt":      "2026-04-08T18:00:00.000Z"
+  },
+  "next": {
+    "title":    "Live Weather",
+    "duration": 3600,
+    "startsAt": "2026-04-08T18:00:00.000Z"
+  },
+  "stream": "http://host/stream.m3u8"
+}
+```
+
+## Using with Director
+
+Boom integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
+
+```yaml
+configs:
+  - ./channels/my_reel_channel/config.yaml   # existing reel channel
+
+  - name:        "WeatherStar 4000"
+    type:        boom
+    description: "Live retro weather display"
+    environment:
+      ZIP_CODE:   "90210"
+      WS4KP_HOST: "ws4kp"     # name of the ws4kp service in your compose
+      WS4KP_PORT: "8080"
+```
+
+Then re-run `mark` to regenerate your compose file. Director will show 1-hour
+"Live Weather" blocks in the guide with a live progress bar.
+
+> **Note:** The `ws4kp` service itself is not managed by Director. Add it to
+> your `docker-compose.director.yml` manually, or run it separately.
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `9798` | HTTP port |
+| `PORT` | `8080` | HTTP port |
 | `ZIP_CODE` | `90210` | ZIP code (or city/state) for weather location |
 | `WS4KP_HOST` | `localhost` | Host running the WS4KP container |
 | `WS4KP_PORT` | `8080` | Port for WS4KP |

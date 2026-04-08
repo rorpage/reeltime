@@ -1,8 +1,7 @@
 'use strict';
 
 /**
- * Shared utility functions used by both reeltime (streamer.js) and
- * reeltime-director (director/src/director.js).
+ * Shared utility functions used by reel, scout, boom, and director.
  */
 
 /**

@@ -4,9 +4,111 @@ A self-hosted continuous HLS video streaming suite.
 
 | Service | Description |
 |---------|-------------|
-| **Reel** | Single-channel HLS streamer — loops a YAML playlist as a live m3u8 feed |
-| **Director** | Multi-channel guide — aggregates N Reel instances into one UI, XMLTV, and M3U |
+| **[Reel](reel/README.md)** | Playlist-driven HLS streamer — loops a YAML video playlist as a live m3u8 feed |
+| **[Scout](scout/README.md)** | Web-page capture streamer — turns any URL into a live HLS channel |
+| **[Boom](boom/README.md)** | WeatherStar 4000 streamer — captures WS4KP as a live retro weather channel |
+| **[Director](director/README.md)** | Multi-channel guide — aggregates Reel, Scout, and Boom into one TV guide UI, XMLTV, and M3U |
 
 **Just want to get running?** See the [Director quick start](director/README.md) — all you need is Docker.
 
-**Single channel only?** See the [Reel quick start](reel/README.md).
+**Single channel only?** See the [Reel](reel/README.md), [Scout](scout/README.md), or [Boom](boom/README.md) quick starts.
+
+---
+
+## Quick Setup (no clone required)
+
+All you need is Docker. Everything runs from pre-built images on GHCR.
+
+### 1. Create a working directory
+
+```bash
+mkdir reeltime && cd reeltime
+mkdir -p channels/my_channel
+```
+
+### 2. Create a channel config
+
+`channels/my_channel/config.yaml`:
+
+```yaml
+stream:
+  name: "My Channel"
+  loop: true
+  loop_count: -1
+
+videos:
+  - title: "My Video"
+    url: "https://example.com/video.mp4"
+    duration: 3600
+```
+
+### 3. Create director.config.yaml
+
+```yaml
+director:
+  name: "My Reeltime"
+
+configs:
+  - ./channels/my_channel/config.yaml
+```
+
+Want to add a web-page capture channel? Add Scout:
+
+```yaml
+configs:
+  - ./channels/my_channel/config.yaml
+
+  - name:        "My Dashboard"
+    type:        scout
+    description: "Live dashboard capture"
+    environment:
+      CAPTURE_URL: "https://example.com/dashboard"
+```
+
+Want a weather channel too? Add Boom (requires a running [WS4KP](https://github.com/netbymatt/ws4kp) container):
+
+```yaml
+configs:
+  - ./channels/my_channel/config.yaml
+
+  - name:        "WeatherStar 4000"
+    type:        boom
+    description: "Live retro weather"
+    environment:
+      ZIP_CODE:   "90210"
+      WS4KP_HOST: "ws4kp"
+      WS4KP_PORT: "8080"
+```
+
+### 4. Generate the compose file
+
+```bash
+docker run --rm \
+  -v "$(pwd):/data" \
+  --entrypoint node \
+  ghcr.io/rorpage/reeltime-director:latest \
+  /app/director/src/director.js mark /data/director.config.yaml
+```
+
+This writes `docker-compose.director.yml` into your working directory.
+
+### 5. Start everything
+
+```bash
+docker compose -f docker-compose.director.yml up -d
+```
+
+| Service | URL |
+|---------|-----|
+| TV Guide | http://localhost:10000 |
+| My Channel | http://localhost:10001 |
+| WeatherStar 4000 | http://localhost:10002 |
+
+Open the TV Guide in your browser. Add `http://localhost:10000/channels.m3u` and
+`http://localhost:10000/xmltv` to Jellyfin, Plex, Channels DVR, or any
+M3U/XMLTV-compatible app.
+
+---
+
+For more options — multiple reel channels, Scout web-page capture, custom ports,
+and state persistence — see the [Director README](director/README.md).
