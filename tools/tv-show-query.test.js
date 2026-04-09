@@ -151,7 +151,7 @@ test('slugify — replaces multiple non-alphanumeric chars with single hyphen', 
 // 7. yamlVal
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('yamlVal — encodes boolean true', () => {
+test('yamlVal — encodes boolean values', () => {
   assert.equal(yamlVal(true),  'true');
   assert.equal(yamlVal(false), 'false');
 });
@@ -379,7 +379,7 @@ test('generateYaml — contains TVmaze source URL in header', () => {
 // 14. parseArgs
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('parseArgs — returns nulls when no args', () => {
+test('parseArgs — returns default null values when no args provided', () => {
   const r = parseArgs(['node', 'script.js']);
   assert.deepEqual(r, { query: null, id: null, season: null, output: null });
 });
