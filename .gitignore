@@ -27,6 +27,9 @@ npm-debug.log*
 # Runtime
 /tmp/hls/
 
+# Generated playlist configs from tv-show-query tool
+tools/tv-show-query/*.yaml
+
 # Local helper scripts (non-source-controlled)
 /scripts/
 
