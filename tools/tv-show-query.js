@@ -135,10 +135,15 @@ function buildBlock(entries, { indent = '  ', listItem = false, comments = {} } 
 
 // ─── YAML Builders ────────────────────────────────────────────────────────────
 
+/** Pick the best available image URL from a TVmaze image object, or null. */
+function pickImage(image) {
+  return image?.original || image?.medium || null;
+}
+
 function buildStreamSection(show) {
   const block = buildBlock([
     ['name',       show.name],
-    ['icon',       show.image?.original || show.image?.medium || ''],
+    ['icon',       pickImage(show.image)],
     ['loop',       true],
     ['loop_count', -1],
   ]);
@@ -146,8 +151,7 @@ function buildStreamSection(show) {
 }
 
 function buildEpisodeEntry(show, ep) {
-  const showIcon = show.image?.original || show.image?.medium || null;
-  const epIcon   = ep.image?.original   || ep.image?.medium   || showIcon;
+  const epIcon = pickImage(ep.image) || pickImage(show.image);
 
   return buildBlock([
     ['title',        ep.name || 'TBA'],
@@ -339,6 +343,7 @@ if (require.main !== module) {
     slugify,
     yamlVal,
     buildBlock,
+    pickImage,
     buildStreamSection,
     buildEpisodeEntry,
     buildVideosSection,

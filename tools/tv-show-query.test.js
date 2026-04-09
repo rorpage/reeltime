@@ -17,6 +17,7 @@ const {
   slugify,
   yamlVal,
   buildBlock,
+  pickImage,
   buildStreamSection,
   buildEpisodeEntry,
   buildVideosSection,
@@ -216,7 +217,27 @@ test('buildBlock — returns empty string when all values are null', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. buildStreamSection
+// 9. pickImage
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('pickImage — returns original when present', () => {
+  assert.equal(pickImage({ original: 'http://orig', medium: 'http://med' }), 'http://orig');
+});
+
+test('pickImage — falls back to medium when original absent', () => {
+  assert.equal(pickImage({ medium: 'http://med' }), 'http://med');
+});
+
+test('pickImage — returns null for null image', () => {
+  assert.equal(pickImage(null), null);
+});
+
+test('pickImage — returns null when both original and medium are absent', () => {
+  assert.equal(pickImage({}), null);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. buildStreamSection
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildStreamSection — starts with "stream:"', () => {
@@ -229,6 +250,18 @@ test('buildStreamSection — includes show name', () => {
   assert.ok(buildStreamSection(show).includes('"My Show"'));
 });
 
+test('buildStreamSection — omits icon when show has no image', () => {
+  const show = { name: 'My Show', image: null };
+  const out = buildStreamSection(show);
+  assert.ok(!out.includes('icon:'));
+});
+
+test('buildStreamSection — includes icon when show has image', () => {
+  const show = { name: 'My Show', image: { original: 'http://img' } };
+  const out = buildStreamSection(show);
+  assert.ok(out.includes('"http://img"'));
+});
+
 test('buildStreamSection — includes loop: true and loop_count: -1', () => {
   const show = { name: 'S', image: null };
   const out = buildStreamSection(show);
@@ -237,7 +270,7 @@ test('buildStreamSection — includes loop: true and loop_count: -1', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. buildEpisodeEntry
+// 11. buildEpisodeEntry
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SHOW = { name: 'Test Show', image: { original: 'http://show.img' } };
@@ -290,7 +323,7 @@ test('buildEpisodeEntry — falls back to show image when episode has no image',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. buildVideosSection
+// 12. buildVideosSection
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildVideosSection — starts with "videos:"', () => {
@@ -306,7 +339,7 @@ test('buildVideosSection — includes all episodes', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12. generateYaml
+// 13. generateYaml
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SHOW_WITH_ID = { ...SHOW, id: 999 };
@@ -343,7 +376,7 @@ test('generateYaml — contains TVmaze source URL in header', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 13. parseArgs
+// 14. parseArgs
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('parseArgs — returns nulls when no args', () => {
