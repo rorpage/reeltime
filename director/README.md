@@ -1,6 +1,6 @@
 # Reeltime Director
 
-Reeltime Director aggregates multiple [Reeltime](../README.md) HLS stream instances into a single guide. Point it at your channel config files and it gives you a dark neon guide UI, an embedded player, XMLTV, M3U, and a health endpoint — no cloning required, just Docker.
+Reeltime Director aggregates multiple [Reeltime](../README.md) HLS stream instances into a single guide. Point it at your channel config files and it gives you a dark neon guide UI, an embedded player, XMLTV, M3U, and a health endpoint - no cloning required, just Docker.
 
 ---
 
@@ -44,7 +44,7 @@ configs:
   - ./channels/channel2/config.yaml
 ```
 
-### 4. Mark — generate the compose file
+### 4. Mark - generate the compose file
 
 ```bash
 docker run --rm \
@@ -56,7 +56,7 @@ docker run --rm \
 
 This writes `docker-compose.director.yml` into your working directory.
 
-### 5. Action — start everything
+### 5. Action - start everything
 
 ```bash
 docker compose -f docker-compose.director.yml up -d
@@ -137,7 +137,7 @@ Each reel container writes its playback state to `<configDir>/state.<channel_id>
 
 | Method  | Path            | Description                                                       |
 |---------|-----------------|-------------------------------------------------------------------|
-| GET     | `/`             | Dark neon guide UI — all channels, auto-refreshes every 5 s      |
+| GET     | `/`             | Dark neon guide UI - all channels, auto-refreshes every 5 s      |
 | GET     | `/watch/:id`    | Embedded HLS.js player for the channel with the given id         |
 | GET     | `/now`          | Aggregated now-playing JSON for all channels                     |
 | GET     | `/xmltv`        | Combined XMLTV guide (merged from all channels)                  |
@@ -258,11 +258,11 @@ cd director && npm test
 <details>
 <summary>Architecture Notes</summary>
 
-- **Config derivation** — at startup, Director reads each Reeltime config file once and caches the channel metadata (name, id, icon). The Docker service URL is deterministically derived as `http://reeltime-<id>:8080`, matching the names produced by `mark`.
-- **Channel polling** — Director polls each channel's `/now` and `/health` endpoints every **10 seconds**. Results are stored in an in-memory `Map` keyed by channel id and served from cache on every request.
-- **XMLTV proxy** — On each `/xmltv` request, Director fetches `/xmltv` from all channels concurrently and merges the resulting `<channel>` and `<programme>` elements into a single `<tv>` document.
-- **M3U aggregation** — `buildAggregatedM3U` constructs the playlist entirely from config; no upstream fetch is needed.
-- **No external HTTP framework** — routing uses a simple `if`/`match` handler built on `node:http`. CORS headers are added to every response.
-- **Dark neon UI** — a static `index.html` served from `director/src/public/`; client-side JS fetches `/now` every 5 s and updates all channel cards in place, keeping a live clock in the top-right corner.
+- **Config derivation** - at startup, Director reads each Reeltime config file once and caches the channel metadata (name, id, icon). The Docker service URL is deterministically derived as `http://reeltime-<id>:8080`, matching the names produced by `mark`.
+- **Channel polling** - Director polls each channel's `/now` and `/health` endpoints every **10 seconds**. Results are stored in an in-memory `Map` keyed by channel id and served from cache on every request.
+- **XMLTV proxy** - On each `/xmltv` request, Director fetches `/xmltv` from all channels concurrently and merges the resulting `<channel>` and `<programme>` elements into a single `<tv>` document.
+- **M3U aggregation** - `buildAggregatedM3U` constructs the playlist entirely from config; no upstream fetch is needed.
+- **No external HTTP framework** - routing uses a simple `if`/`match` handler built on `node:http`. CORS headers are added to every response.
+- **Dark neon UI** - a static `index.html` served from `director/src/public/`; client-side JS fetches `/now` every 5 s and updates all channel cards in place, keeping a live clock in the top-right corner.
 
 </details>

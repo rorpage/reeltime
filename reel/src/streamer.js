@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * HLS Video Streamer — ffconcat FIFO edition
+ * HLS Video Streamer - ffconcat FIFO edition
  *
  * Endpoints
  * ─────────────────────────────────────────────────
@@ -83,8 +83,8 @@ function loadConfig() {
   const videos = raw.videos.map((v, i) => {
     const n = i + 1;
     if (!v.url)      { error(`Video ${n}: "url" is required`); process.exit(1); }
-    if (!v.title)    warn(`Video ${n}: no "title" — using URL basename`);
-    if (!v.duration) warn(`Video ${n}: no "duration" — defaulting to 3600 s`);
+    if (!v.title)    warn(`Video ${n}: no "title" - using URL basename`);
+    if (!v.duration) warn(`Video ${n}: no "duration" - defaulting to 3600 s`);
     return {
       title:       String(v.title       || path.basename(String(v.url))),
       url:         String(v.url),
@@ -132,7 +132,7 @@ function createFifo() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Schedule  —  wall-clock aligned programme listings
+// Schedule  -  wall-clock aligned programme listings
 //
 // Every time a clip entry is written into the FIFO, addToSchedule() records
 // its LOGICAL playback window (not the FIFO write time) so that:
@@ -223,7 +223,7 @@ function getScheduleWindow(fromMs, toMs, videos, loop, loopCount) {
       vidIndex++;
       if (vidIndex >= videos.length) { vidIndex = 0; pass++; }
 
-      // Termination — mirrors the outer-loop conditions in writeFifo()
+      // Termination - mirrors the outer-loop conditions in writeFifo()
       if (!loop && pass >= 1)                    break;
       if (loop && !forever && pass >= loopCount) break;
 
@@ -333,7 +333,7 @@ const playState = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// State persistence  —  survive container restarts
+// State persistence  -  survive container restarts
 //
 // Every STATE_SAVE_INTERVAL_MS the current video index, pass, and playback
 // position are written atomically to a JSON file so the stream can resume
@@ -361,26 +361,26 @@ function loadState(videos) {
     const { videoIndex, pass, positionSec, savedAt } = raw;
 
     if (typeof videoIndex !== 'number' || videoIndex < 0 || videoIndex >= videos.length) {
-      warn('State file has invalid videoIndex — starting from beginning');
+      warn('State file has invalid videoIndex - starting from beginning');
       return null;
     }
     if (typeof pass !== 'number' || pass < 0) {
-      warn('State file has invalid pass — starting from beginning');
+      warn('State file has invalid pass - starting from beginning');
       return null;
     }
     if (typeof positionSec !== 'number' || positionSec < 0) {
-      warn('State file has invalid positionSec — starting from beginning');
+      warn('State file has invalid positionSec - starting from beginning');
       return null;
     }
 
     if (!savedAt || typeof savedAt !== 'string' || isNaN(new Date(savedAt).getTime())) {
-      warn('State file has invalid savedAt — starting from beginning');
+      warn('State file has invalid savedAt - starting from beginning');
       return null;
     }
 
     const ageMs = Date.now() - new Date(savedAt).getTime();
     if (ageMs > CFG.stateMaxAgeSec * 1000) {
-      info(`State file is too old (${Math.round(ageMs / 3600000)} h) — starting from beginning`);
+      info(`State file is too old (${Math.round(ageMs / 3600000)} h) - starting from beginning`);
       return null;
     }
 
@@ -459,8 +459,8 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
     writer.on('error', err => {
       abort.abort();
       if (err.code === 'EPIPE') {
-        // ffmpeg closed its read end — expected on finite playlist end / SIGTERM
-        info('FIFO: read end closed by ffmpeg (EPIPE) — writer done');
+        // ffmpeg closed its read end - expected on finite playlist end / SIGTERM
+        info('FIFO: read end closed by ffmpeg (EPIPE) - writer done');
         settle(resolve);
       } else {
         settle(() => reject(err));
@@ -468,7 +468,7 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
     });
 
     writer.on('finish', () => { info('FIFO: all entries flushed'); settle(resolve); });
-    writer.on('open',   () => { info('FIFO connected — beginning playlist'); runLoop().catch(e => settle(() => reject(e))); });
+    writer.on('open',   () => { info('FIFO connected - beginning playlist'); runLoop().catch(e => settle(() => reject(e))); });
 
     // Write with backpressure: pause source if kernel FIFO buffer is full
     const writeEntry = data => new Promise(res => {
@@ -482,7 +482,7 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
       // ── Resume validation ────────────────────────────────────────────────────
       if (resumeFrom) {
         if (resumeFrom.pass >= totalPasses) {
-          warn(`Saved pass ${resumeFrom.pass} exceeds cycle size ${totalPasses} — starting from beginning`);
+          warn(`Saved pass ${resumeFrom.pass} exceeds cycle size ${totalPasses} - starting from beginning`);
           resumeFrom = null;
         } else {
           // Pre-set the logical clock so the first scheduled entry has a startAt
@@ -541,7 +541,7 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
       }
 
       if (!abort.signal.aborted) {
-        info('All passes queued — closing FIFO write-end');
+        info('All passes queued - closing FIFO write-end');
         writer.end();
       }
     }
@@ -549,7 +549,7 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ffmpeg  —  single long-running process
+// ffmpeg  -  single long-running process
 // ─────────────────────────────────────────────────────────────────────────────
 
 let ffmpegProc = null;
@@ -804,7 +804,7 @@ function startServer(cfg) {
         // Peek one entry beyond current.endAt
         const peek = getScheduleWindow(
           current.endAt,
-          current.endAt + 1,   // just past the boundary — gets exactly 1 entry
+          current.endAt + 1,   // just past the boundary - gets exactly 1 entry
           videos, loop, loopCount,
         );
         next = peek[0] ?? null;
@@ -906,7 +906,7 @@ function startServer(cfg) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET /   (alias: /player)   —  embedded HLS.js web player
+    // GET /   (alias: /player)   -  embedded HLS.js web player
     // ─────────────────────────────────────────────────────────────────────────
     if (url === '/' || url === '/player') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -915,7 +915,7 @@ function startServer(cfg) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // GET /stream.m3u8  and  GET /seg_*.ts  —  HLS files
+    // GET /stream.m3u8  and  GET /seg_*.ts  -  HLS files
     // ─────────────────────────────────────────────────────────────────────────
     const file = path.basename(url);
     const ext  = path.extname(file);
@@ -960,7 +960,7 @@ function startServer(cfg) {
 
 ['SIGTERM', 'SIGINT'].forEach(sig =>
   process.on(sig, () => {
-    info(`${sig} — shutting down`);
+    info(`${sig} - shutting down`);
     saveState();
     stopStateSaving();
     if (ffmpegProc) ffmpegProc.kill('SIGTERM');
@@ -1030,22 +1030,22 @@ process.on('uncaughtException', err => {
     resumeState = null;  // resume only on the first cycle
 
     if (ffmpegCode !== 0 && autoRollover) {
-      warn(`Rollover cycle ${cycle} failed (ffmpeg exit ${ffmpegCode}) — retrying in ${RETRY_DELAY_MS} ms`);
+      warn(`Rollover cycle ${cycle} failed (ffmpeg exit ${ffmpegCode}) - retrying in ${RETRY_DELAY_MS} ms`);
       await sleep(RETRY_DELAY_MS);
       continue;
     }
 
     if (ffmpegCode !== 0) {
-      info(`Stream complete — ffmpeg exit code: ${ffmpegCode}`);
+      info(`Stream complete - ffmpeg exit code: ${ffmpegCode}`);
       process.exit(1);
     }
 
     if (!autoRollover) {
-      info('Stream complete — ffmpeg exit code: 0');
+      info('Stream complete - ffmpeg exit code: 0');
       process.exit(0);
     }
 
-    info(`Rollover cycle ${cycle} complete — restarting in ${ROLLOVER_DELAY_MS} ms`);
+    info(`Rollover cycle ${cycle} complete - restarting in ${ROLLOVER_DELAY_MS} ms`);
     await sleep(ROLLOVER_DELAY_MS);
   }
 })();

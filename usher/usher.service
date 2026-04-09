@@ -1,0 +1,18 @@
+[Unit]
+Description=usher -IR remote control for the movie stack
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/usher
+ExecStart=/home/pi/usher/venv/bin/usher --config /home/pi/usher/config.yaml
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+[Install]
+WantedBy=graphical-session.target

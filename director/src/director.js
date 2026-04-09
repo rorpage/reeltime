@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Reeltime Director — guide + player aggregator
+ * Reeltime Director - guide + player aggregator
  *
  * Endpoints
  * ─────────────────────────────────────────────────
@@ -200,7 +200,7 @@ function generateCompose(directorConfigPath, useImages = false) {
     // director.config.yaml references when resolved from /config/.
     const relFromCfgDir = path.relative(cfgDir, path.resolve(ch.configPath));
     const containerSubPath = relFromCfgDir.startsWith('..')
-      ? path.basename(ch.configPath)          // outside cfgDir — fall back to basename
+      ? path.basename(ch.configPath)          // outside cfgDir - fall back to basename
       : relFromCfgDir.replace(/\\/g, '/');
     lines.push(`      - ${chRel}:/config/${containerSubPath}:ro`);
   });
@@ -280,7 +280,7 @@ function generateCompose(directorConfigPath, useImages = false) {
 /**
  * Build an aggregated M3U playlist for all channels.
  * @param {Array}  channels
- * @param {string} host  — request Host header value (e.g. "192.168.1.5:9999")
+ * @param {string} host  - request Host header value (e.g. "192.168.1.5:9999")
  * @returns {string}
  */
 function buildAggregatedM3U(channels, host) {
@@ -363,7 +363,7 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escHtml(channel.name)} — Reeltime TV Guide</title>
+  <title>${escHtml(channel.name)} - Reeltime TV Guide</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -517,12 +517,12 @@ function buildPlayerHTML(channel, neonColor, externalBase) {
             if (!ch || !ch.now) return;
             const now  = ch.now;
             const curr = now.current || {};
-            document.getElementById('now-title').textContent = curr.title || '—';
+            document.getElementById('now-title').textContent = curr.title || '-';
             const pct = curr.progress != null ? Math.round(curr.progress * 100) : 0;
             document.getElementById('progress-bar').style.width = pct + '%';
             const rem = curr.remaining != null ? Math.ceil(curr.remaining / 60) : 0;
             document.getElementById('now-meta').textContent = pct + '% \u2014 ' + rem + ' min remaining';
-            const nextTitle = (now.next && now.next.title) || '—';
+            const nextTitle = (now.next && now.next.title) || '-';
             document.getElementById('now-next').innerHTML =
               '<span class="label">Next:</span> ' +
               nextTitle.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -558,7 +558,7 @@ function buildChannelHTML(channel, externalBase) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escHtml(channel.name)} — Reeltime TV Guide</title>
+  <title>${escHtml(channel.name)} - Reeltime TV Guide</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -640,7 +640,7 @@ function buildChannelHTML(channel, externalBase) {
 
     <div class="card" id="now-card">
       <div class="card-label">Now Playing</div>
-      <div class="now-ep" id="now-ep">—</div>
+      <div class="now-ep" id="now-ep">-</div>
       <div class="now-series" id="now-series"></div>
       <div class="now-times" id="now-times"></div>
       <div class="progress-wrap"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
@@ -686,7 +686,7 @@ function buildChannelHTML(channel, externalBase) {
 
         // Episode label: episodeNum · title, or series, or plain title
         var epLabel = [curr.episodeNum, (curr.seriesTitle && curr.title !== curr.seriesTitle) ? curr.title : (curr.subTitle || '')].filter(Boolean).join(' \\u00b7 ') || curr.seriesTitle || curr.title;
-        document.getElementById('now-ep').textContent     = epLabel || '—';
+        document.getElementById('now-ep').textContent     = epLabel || '-';
         document.getElementById('now-series').textContent = (curr.seriesTitle && curr.title !== curr.seriesTitle) ? curr.seriesTitle : '';
 
         var startMs = new Date(curr.startedAt).getTime();
@@ -853,7 +853,7 @@ function createRequestHandler(directorName, channels, channelCache) {
       return res.end(INDEX_HTML);
     }
 
-    // GET /favicon.ico — serve an emoji SVG favicon
+    // GET /favicon.ico - serve an emoji SVG favicon
     if (req.method === 'GET' && pathname === '/favicon.ico') {
       res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
       return res.end(FAVICON_SVG);
@@ -1002,7 +1002,7 @@ function main() {
   const channels     = cfg.channels;
   const channelCache = new Map();
 
-  info(`Starting ${directorName} — ${channels.length} channel(s) on port ${port}`);
+  info(`Starting ${directorName} - ${channels.length} channel(s) on port ${port}`);
 
   // Initial poll then recurring interval
   pollChannels(channels, channelCache).catch(e => warn('Initial poll error:', e.message));
@@ -1021,7 +1021,7 @@ function main() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Exports (for testing) — only when not the entry-point
+// Exports (for testing) - only when not the entry-point
 // ─────────────────────────────────────────────────────────────────────────────
 
 if (require.main !== module) {

@@ -19,7 +19,7 @@ function toSnakeCase(str, fallback = 'reeltime') {
   if (typeof str !== 'string' || str.trim() === '') return fallback;
   // Collapse any run of non-alphanumeric characters to a single underscore
   const slug  = str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-  // After the replace above, leading/trailing underscores are at most one char —
+  // After the replace above, leading/trailing underscores are at most one char -
   // trim them with string slicing to avoid regex backtracking concerns.
   const start = slug[0] === '_' ? 1 : 0;
   const end   = slug[slug.length - 1] === '_' ? slug.length - 1 : slug.length;

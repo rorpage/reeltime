@@ -1,7 +1,7 @@
 {
   "name": "reeltime",
   "version": "1.0.0",
-  "description": "Reeltime — self-hosted continuous HLS video streamer with optional Director aggregator",
+  "description": "Reeltime - self-hosted continuous HLS video streamer with optional Director aggregator",
   "private": true,
   "scripts": {
     "mark": "npm install --prefix director --silent && node director/src/director.js mark director.config.yaml"

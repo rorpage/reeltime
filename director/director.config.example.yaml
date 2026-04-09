@@ -1,9 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Reeltime Director — Configuration
+# Reeltime Director - Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Director reads each reeltime config file to derive the channel name, id,
-# icon, and Docker service name automatically — no need to repeat that
+# icon, and Docker service name automatically - no need to repeat that
 # information here.
 #
 # After editing this file, regenerate docker-compose.director.yml with:
@@ -27,4 +27,4 @@ configs:
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
 
-  # Add more channels as needed — just drop another config file here.
+  # Add more channels as needed - just drop another config file here.
