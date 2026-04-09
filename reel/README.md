@@ -28,14 +28,18 @@ From the **repo root** (where `docker-compose.yml` lives):
 
 1. Copy the sample config:
 
-	mkdir -p config
-	cp reel/config.example.yaml config/config.yaml
+    ```bash
+    mkdir -p config
+    cp reel/config.example.yaml config/config.yaml
+    ```
 
 2. Edit `config/config.yaml` with your video URLs and durations.
 
 3. Start the service:
 
-	docker compose up --build
+    ```bash
+    docker compose up --build
+    ```
 
 4. Open:
 
@@ -47,20 +51,28 @@ From the **repo root** (where `docker-compose.yml` lives):
 
 1. Install dependencies:
 
-	npm install
+    ```bash
+    npm install
+    ```
 
 2. Copy config and edit it:
 
-	cp reel/config.example.yaml config.yaml
+    ```bash
+    cp reel/config.example.yaml config.yaml
+    ```
 
 3. Set environment variables (optional) and start:
 
-	CONFIG_PATH=./config.yaml npm start
+    ```bash
+    CONFIG_PATH=./config.yaml npm start
+    ```
 
 On Windows PowerShell:
 
-	$env:CONFIG_PATH = ".\\config.yaml"
-	npm start
+```powershell
+$env:CONFIG_PATH = ".\\config.yaml"
+npm start
+```
 
 ## Configuration
 
@@ -160,12 +172,16 @@ The state file is written alongside the config file inside the container. With t
 
 Build and run directly:
 
+```bash
 docker build -t reeltime ./reel
 docker run -p 8080:8080 -v $(pwd)/config:/config reeltime
+```
 
 On Windows PowerShell:
 
+```powershell
 docker run -p 8080:8080 -v ${PWD}/config:/config reeltime
+```
 
 ## Development Notes
 
