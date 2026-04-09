@@ -87,6 +87,9 @@ const fmtEp   = (s, e) => `S${pad(s)}E${pad(e)}`;
 const slugify = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
+/** "Some Title (2)" → "Some Title - Part 2"  (TVmaze multi-part episode naming) */
+const normalizeTitle = (s) => s.replace(/\s*\((\d+)\)$/, (_, n) => ` - Part ${n}`);
+
 // ─── YAML Helpers ─────────────────────────────────────────────────────────────
 
 /** Encode a value to its YAML literal. Strings are safely double-quoted. */
@@ -153,10 +156,11 @@ function buildStreamSection(show) {
 function buildEpisodeEntry(show, ep) {
   const epIcon = pickImage(ep.image) || pickImage(show.image);
 
+  const title = normalizeTitle(ep.name || 'TBA');
   return buildBlock([
-    ['title',        ep.name || 'TBA'],
+    ['title',        title],
     ['series_title', show.name],
-    ['sub_title',    ep.name || 'TBA'],
+    ['sub_title',    title],
     ['episode_num',  fmtEp(ep.season, ep.number)],
     ['date',         toXmltvDate(ep.airdate)],
     ['url',          ''],
@@ -341,6 +345,7 @@ if (require.main !== module) {
     pad,
     fmtEp,
     slugify,
+    normalizeTitle,
     yamlVal,
     buildBlock,
     pickImage,

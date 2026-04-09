@@ -15,6 +15,7 @@ const {
   pad,
   fmtEp,
   slugify,
+  normalizeTitle,
   yamlVal,
   buildBlock,
   pickImage,
@@ -148,7 +149,27 @@ test('slugify — replaces multiple non-alphanumeric chars with single hyphen', 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. yamlVal
+// 7. normalizeTitle
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('normalizeTitle — converts (1) suffix to - Part 1', () => {
+  assert.equal(normalizeTitle('Hi Diddle Riddle (1)'), 'Hi Diddle Riddle - Part 1');
+});
+
+test('normalizeTitle — converts (2) suffix to - Part 2', () => {
+  assert.equal(normalizeTitle('Smack in the Middle (2)'), 'Smack in the Middle - Part 2');
+});
+
+test('normalizeTitle — leaves titles without a part suffix unchanged', () => {
+  assert.equal(normalizeTitle('Pilot'), 'Pilot');
+});
+
+test('normalizeTitle — handles (N) with no preceding space', () => {
+  assert.equal(normalizeTitle('Some Title(3)'), 'Some Title - Part 3');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. yamlVal
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('yamlVal — encodes boolean values', () => {
@@ -182,7 +203,7 @@ test('yamlVal — collapses newlines to spaces in strings', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. buildBlock
+// 10. buildBlock
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildBlock — omits null values', () => {
@@ -217,7 +238,7 @@ test('buildBlock — returns empty string when all values are null', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. pickImage
+// 11. pickImage
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('pickImage — returns original when present', () => {
@@ -237,7 +258,7 @@ test('pickImage — returns null when both original and medium are absent', () =
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. buildStreamSection
+// 12. buildStreamSection
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildStreamSection — starts with "stream:"', () => {
@@ -270,7 +291,7 @@ test('buildStreamSection — includes loop: true and loop_count: -1', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. buildEpisodeEntry
+// 13. buildEpisodeEntry
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SHOW = { name: 'Test Show', image: { original: 'http://show.img' } };
@@ -323,7 +344,7 @@ test('buildEpisodeEntry — falls back to show image when episode has no image',
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12. buildVideosSection
+// 14. buildVideosSection
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildVideosSection — starts with "videos:"', () => {
@@ -339,7 +360,7 @@ test('buildVideosSection — includes all episodes', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 13. generateYaml
+// 15. generateYaml
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SHOW_WITH_ID = { ...SHOW, id: 999 };
@@ -376,7 +397,7 @@ test('generateYaml — contains TVmaze source URL in header', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 14. parseArgs
+// 16. parseArgs
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('parseArgs — returns default null values when no args provided', () => {
