@@ -61,12 +61,12 @@ async function getEpisodes(showId) {
 function stripHtml(html) {
   if (!html) return null;
   const text = html
-    .replace(/<[^>]*>/g,       '')
-    .replace(/&amp;/g,         '&')
-    .replace(/&lt;/g,          '<')
-    .replace(/&gt;/g,          '>')
+    .replace(/<[^>]*>/g,       '')   // strip tags first
     .replace(/&quot;/g,        '"')
     .replace(/&#039;|&apos;/g, "'")
+    .replace(/&lt;/g,          '<')
+    .replace(/&gt;/g,          '>')
+    .replace(/&amp;/g,         '&')  // always last — avoids double-decoding
     .replace(/\s+/g,           ' ')
     .trim();
   return text || null;
