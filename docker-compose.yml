@@ -141,6 +141,8 @@ services:
       # (docker compose down && up) and not just restarts.
       # Put your config.yaml file(s) inside the ./config/ directory.
       - ./config:/config
+      # Optional: mount a local video directory and use /videos/<file>.mp4 as url in config.yaml
+      # - ./videos:/videos:ro
 
     environment:
       PORT:             "8080"
