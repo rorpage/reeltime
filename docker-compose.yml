@@ -1,3 +1,14 @@
+## ── Usage ────────────────────────────────────────────────────────────────────
+## Each service is guarded by a profile so you can start only what you need.
+##
+##   docker compose --profile reel   up --build   # Reeltime only
+##   docker compose --profile scout  up --build   # Scout only
+##   docker compose --profile boom   up --build   # Boom only
+##
+##   docker compose --profile reel --profile scout --profile boom up --build
+##                                                # all three
+## ─────────────────────────────────────────────────────────────────────────────
+
 services:
 
   # ── Scout — generic web-page HLS streamer ────────────────────────────────────
@@ -11,6 +22,7 @@ services:
   # Guide:  http://localhost:8080/xmltv
   # Health: http://localhost:8080/health
   scout:
+    profiles: [scout]
     build:
       context: scout
       dockerfile: Dockerfile
@@ -65,6 +77,7 @@ services:
   # XMLTV:  http://localhost:9798/xmltv
   # Health: http://localhost:9798/health
   boom:
+    profiles: [boom]
     build:
       context: boom
       dockerfile: Dockerfile
@@ -74,11 +87,10 @@ services:
     ports:
       - "${BOOM_HOST_PORT:-9798}:9798"
 
-    volumes:
-      # Optional: mount MP3 files for background music
-      # - ./music:/music:ro
-      # Optional: mount logo PNG files
-      # - ./logo:/logo:ro
+    # Optional volume mounts (uncomment volumes: and the entries you need):
+    # volumes:
+    #   - ./music:/music:ro   # background music MP3 files
+    #   - ./logo:/logo:ro     # logo PNG files
 
     environment:
       PORT:            "9798"
@@ -112,6 +124,7 @@ services:
 
   # ── Reeltime — playlist-driven HLS streamer ──────────────────────────────────
   reeltime:
+    profiles: [reel]
     build:
       context: .
       dockerfile: reel/Dockerfile
