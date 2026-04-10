@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * tv-show-query.test.js — unit tests for tv-show-query.js pure functions
- * Run with: node --test tools/tv-show-query.test.js  (from repo root)
+ * tvmaze_import.test.js — unit tests for tvmaze_import.js pure functions
+ * Run with: node --test tools/tvmaze-import/tvmaze_import.test.js  (from repo root)
  */
 
 const test   = require('node:test');
@@ -24,7 +24,7 @@ const {
   buildVideosSection,
   generateYaml,
   parseArgs,
-} = require('./tv-show-query.js');
+} = require('./tvmaze_import.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. stripHtml

@@ -7,14 +7,14 @@
  * See: https://github.com/rorpage/reeltime
  *
  * Usage:
- *   node tv-show-query.js "<show name>"
- *   node tv-show-query.js --id <tvmaze_id>
+ *   node tvmaze_import.js "<show name>"
+ *   node tvmaze_import.js --id <tvmaze_id>
  *
  * Examples:
- *   node tv-show-query.js "Breaking Bad"
- *   node tv-show-query.js "The Office" --season 2
- *   node tv-show-query.js --id 169
- *   node tv-show-query.js --id 169 --season 2 --output breaking-bad-s2.yaml
+ *   node tvmaze_import.js "Brooklyn Nine-Nine"
+ *   node tvmaze_import.js "Brooklyn Nine-Nine" --season 2
+ *   node tvmaze_import.js --id 49
+ *   node tvmaze_import.js --id 49 --season 2 --output brooklyn-nine-nine-s02.yaml
  *
  * Find a TVmaze show ID at: https://www.tvmaze.com (it's in the URL of any show page)
  *
@@ -263,15 +263,15 @@ function parseArgs(argv) {
 
 function printUsage() {
   console.log('\n  Usage:');
-  console.log('    node tv-show-query.js "<show name>"');
-  console.log('    node tv-show-query.js --id <tvmaze_id>');
+  console.log('    node tvmaze_import.js "<show name>"');
+  console.log('    node tvmaze_import.js --id <tvmaze_id>');
   console.log('\n  Examples:');
-  console.log('    node tv-show-query.js "Breaking Bad"');
-  console.log('    node tv-show-query.js "The Office" --season 2');
-  console.log('    node tv-show-query.js --id 169');
-  console.log('    node tv-show-query.js --id 169 --season 2 --output breaking-bad-s2.yaml');
+  console.log('    node tvmaze_import.js "Brooklyn Nine-Nine"');
+  console.log('    node tvmaze_import.js "Brooklyn Nine-Nine" --season 2');
+  console.log('    node tvmaze_import.js --id 49');
+  console.log('    node tvmaze_import.js --id 49 --season 2 --output brooklyn-nine-nine-s02.yaml');
   console.log('\n  Tip: Find a show\'s TVmaze ID in its page URL, e.g.:');
-  console.log('    https://www.tvmaze.com/shows/169/breaking-bad  →  ID is 169\n');
+  console.log('    https://www.tvmaze.com/shows/49/brooklyn-nine-nine  →  ID is 49\n');
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
