@@ -62,16 +62,16 @@ test('stripHtml — collapses whitespace', () => {
   assert.equal(stripHtml('  hello   world  '), 'hello world');
 });
 
-test('stripHtml — returns null for empty string', () => {
-  assert.equal(stripHtml(''), null);
+test('stripHtml — returns empty string for empty string', () => {
+  assert.equal(stripHtml(''), '');
 });
 
-test('stripHtml — returns null for null', () => {
-  assert.equal(stripHtml(null), null);
+test('stripHtml — returns empty string for null', () => {
+  assert.equal(stripHtml(null), '');
 });
 
-test('stripHtml — returns null for tags-only input', () => {
-  assert.equal(stripHtml('<p></p>'), null);
+test('stripHtml — returns empty string for tags-only input', () => {
+  assert.equal(stripHtml('<p></p>'), '');
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

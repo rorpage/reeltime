@@ -25,6 +25,7 @@
 
 const { writeFileSync } = require('fs');
 const { resolve }       = require('path');
+const { stripHtml }     = require('../../shared/utils.js');
 
 const BASE_URL = 'https://api.tvmaze.com';
 
@@ -57,20 +58,6 @@ async function getEpisodes(showId) {
 
 // ─── Data Helpers ─────────────────────────────────────────────────────────────
 
-/** Remove HTML tags and decode common entities from TVmaze summary strings. */
-function stripHtml(html) {
-  if (!html) return null;
-  const text = html
-    .replace(/<[^>]*>/g,       '')   // strip tags first
-    .replace(/&quot;/g,        '"')
-    .replace(/&#039;|&apos;/g, "'")
-    .replace(/&lt;/g,          '<')
-    .replace(/&gt;/g,          '>')
-    .replace(/&amp;/g,         '&')  // always last — avoids double-decoding
-    .replace(/\s+/g,           ' ')
-    .trim();
-  return text || null;
-}
 
 /** "2024-03-15" → "20240315"  (XMLTV / Reeltime date format). */
 function toXmltvDate(airdate) {
@@ -166,7 +153,7 @@ function buildEpisodeEntry(show, ep) {
     ['url',          ''],
     ['icon',         epIcon],
     ['duration',     toSeconds(ep.runtime)],
-    ['description',  stripHtml(ep.summary)],
+    ['description',  stripHtml(ep.summary) || null],
     ['category',     'Series'],
   ], {
     listItem: true,

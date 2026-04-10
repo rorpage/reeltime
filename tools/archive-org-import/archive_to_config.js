@@ -6,6 +6,8 @@ const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
+const { stripHtml } = require('../../shared/utils.js');
+
 const DEFAULT_CONFIG_PATH = path.resolve(process.cwd(), 'config.yaml');
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mkv', '.webm', '.mov', '.m4v', '.avi', '.ts']);
 const ARCHIVE_DOWNLOAD_BASE = 'https://archive.org/download';
@@ -124,29 +126,6 @@ function normalizeWhitespace(s) {
   return String(s || '').replace(/\s+/g, ' ').trim();
 }
 
-function decodeHtmlEntities(text) {
-  const named = {
-    amp: '&',
-    lt: '<',
-    gt: '>',
-    quot: '"',
-    apos: "'",
-    nbsp: ' ',
-  };
-
-  return String(text || '').replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (m, code) => {
-    if (code[0] === '#') {
-      const isHex = code[1]?.toLowerCase() === 'x';
-      const num = parseInt(code.slice(isHex ? 2 : 1), isHex ? 16 : 10);
-      return Number.isFinite(num) ? String.fromCodePoint(num) : m;
-    }
-    return Object.prototype.hasOwnProperty.call(named, code) ? named[code] : m;
-  });
-}
-
-function stripTags(html) {
-  return String(html || '').replace(/<[^>]+>/g, ' ');
-}
 
 async function fetchDetailsH1(identifier) {
   const url = `${ARCHIVE_DETAILS_BASE}/${encodeURIComponent(identifier)}`;
@@ -162,7 +141,7 @@ async function fetchDetailsH1(identifier) {
   const m = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
   if (!m) return '';
 
-  return normalizeWhitespace(decodeHtmlEntities(stripTags(m[1])));
+  return stripHtml(m[1]);
 }
 
 function isVideoFile(file) {
@@ -204,7 +183,7 @@ function findArchiveIconUrl(identifier, files) {
 }
 
 function normalizeDescription(metaDescription) {
-  const clean = value => normalizeWhitespace(String(value || ''));
+  const clean = value => stripHtml(String(value || ''));
   if (Array.isArray(metaDescription)) {
     return clean(metaDescription[0]);
   }
