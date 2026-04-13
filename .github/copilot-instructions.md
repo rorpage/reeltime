@@ -1,5 +1,11 @@
 # Reeltime — Copilot Instructions
 
+## Writing style
+
+- **US English** throughout — code, comments, docs, YAML, scripts. Use "behavior" not "behaviour", "color" not "colour", "initialize" not "initialise", etc.
+- **No em dashes** — use ` - ` (space, hyphen, space) as a separator. Never use `—` or `--` as a prose separator.
+- **No emojis** unless explicitly requested.
+
 ## What this project is
 Reeltime is a self-hosted continuous HLS video streamer built with
 Node.js and ffmpeg. It reads a YAML playlist and streams videos
