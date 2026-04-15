@@ -675,7 +675,7 @@ function buildPlayerHTML(name) {
   </style>
 </head>
 <body>
-  <h1>🎬 ${n}</h1>
+  <h1>📺 ${n}</h1>
   <video id="v" controls autoplay muted playsinline></video>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
   <div id="now">Loading…</div>

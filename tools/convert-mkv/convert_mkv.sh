@@ -45,7 +45,7 @@ while IFS= read -r -d '' mkv; do
   echo ""
   echo "[CONVERTING] $mkv"
 
-  if ffmpeg -i "$mkv" \
+  if ffmpeg -nostdin -i "$mkv" \
       -map 0:v:0 \
       -map 0:a:0 \
       -map_metadata -1 \

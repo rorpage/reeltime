@@ -1,8 +1,10 @@
 'use strict';
 
+const fs   = require('node:fs');
+const path = require('node:path');
+
 /**
- * Shared utility functions used by both reeltime (streamer.js) and
- * reeltime-director (director/src/director.js).
+ * Shared utility functions used by reel, scout, boom, and director.
  */
 
 /**
@@ -76,4 +78,48 @@ function stripHtml(s) {
     .trim();
 }
 
-module.exports = { toSnakeCase, escHtml, escXML, stripHtml };
+/**
+ * Fisher-Yates shuffle — returns a new shuffled array, does not mutate the input.
+ *
+ * @template T
+ * @param {T[]} arr
+ * @returns {T[]}
+ */
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Scan a directory for MP3 files and write an ffconcat playlist file.
+ * Returns true when at least one file was found and the playlist was written,
+ * false when the directory is empty or unreadable (caller handles fallback).
+ *
+ * @param {object} opts
+ * @param {string}   opts.musicDir  - directory to scan for .mp3 files
+ * @param {boolean}  opts.shuffle   - whether to randomize playback order
+ * @param {string}   opts.listPath  - path to write the ffconcat playlist
+ * @param {Function} opts.info      - info-level logger
+ * @param {Function} opts.warn      - warn-level logger
+ * @returns {boolean}
+ */
+function buildAudioList({ musicDir, shuffle, listPath, info, warn }) {
+  let files = [];
+  try {
+    files = fs.readdirSync(musicDir).filter(f => f.toLowerCase().endsWith('.mp3'));
+  } catch {
+    warn(`Cannot read music directory: ${musicDir}`);
+  }
+  if (files.length === 0) return false;
+  if (shuffle) files = shuffleArray(files);
+  const lines = files.map(f => `file '${path.join(musicDir, f)}'`).join('\n');
+  fs.writeFileSync(listPath, lines + '\n');
+  info(`Loaded ${files.length} music file(s)${shuffle ? ' (shuffled)' : ''}`);
+  return true;
+}
+
+module.exports = { toSnakeCase, escHtml, escXML, stripHtml, shuffleArray, buildAudioList };
