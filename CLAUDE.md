@@ -16,16 +16,20 @@
 Reeltime is a self-hosted continuous HLS video streaming suite:
 
 - **Reel** (`reel/`) - single-channel HLS streamer; loops a YAML playlist as a live m3u8 feed
-- **Director** (`director/`) - multi-channel guide; aggregates N Reel instances into one UI, XMLTV, and M3U
+- **Scout** (`scout/`) - generic web-page HLS streamer; captures any URL via Puppeteer + ffmpeg as a live channel
+- **Boom** (`boom/`) - WeatherStar 4000 HLS streamer; captures the WS4KP weather display as a retro weather channel
+- **Director** (`director/`) - multi-channel guide; aggregates Reel, Scout, and Boom instances into one UI, XMLTV, and M3U
 
 ## Shared utilities
 
-`shared/utils.js` contains utilities used by both Reel and Director, and is also imported by tools:
+`shared/utils.js` contains utilities used by Reel, Scout, Boom, and Director, and is also imported by tools:
 
 - `toSnakeCase(str, fallback)` - converts a string to snake_case
 - `escHtml(s)` - HTML-escapes a string for output
 - `escXML(s)` - XML-escapes a string for output
 - `stripHtml(s)` - strips HTML tags and decodes entities from a string
+- `shuffleArray(arr)` - Fisher-Yates shuffle; returns a new array, does not mutate the input
+- `buildAudioList({ musicDir, shuffle, listPath, info, warn })` - scans a directory for MP3 files, writes an ffconcat playlist, returns true if files were found
 
 When writing tools or scripts that need these functions, require from `shared/utils.js` rather than reimplementing.
 
