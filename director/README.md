@@ -106,7 +106,7 @@ director:
   # port: 10000               # optional; overridden by PORT env var
 
 configs:
-  # ── Reel channels — point to a config.yaml file ──────────────────────────
+  # ── Reel channels - point to a config.yaml file ──────────────────────────
   - ./channels/channel1/config.yaml
   - ./channels/channel2/config.yaml
 
@@ -114,7 +114,13 @@ configs:
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
 
-  # ── Scout / Boom channels — inline spec, no config file needed ───────────
+  # Optional extra volume mounts (for local video files referenced in config.yaml):
+  # - path: ./channels/channel4/config.yaml
+  #   volumes:
+  #     - /data/shows/my-show:/videos:ro   # absolute host path
+  #     - ./local-videos:/videos:ro        # relative to director.config.yaml
+
+  # ── Scout / Boom channels - inline spec, no config file needed ───────────
   # - name:        "WeatherStar 4000"
   #   type:        boom
   #   description: "Live retro weather display"
@@ -136,6 +142,7 @@ configs:
 | `configs[]`         | **Yes**               | Path to a Reeltime `config.yaml` (string or object with `path`)                 |
 | `configs[].path`    | **Yes** (object form) | Path to a Reeltime config                                                        |
 | `configs[].url`     | No                    | URL override (default: `http://reeltime-<id>:8080`)                             |
+| `configs[].volumes` | No                    | Extra bind mounts added to the reel container (e.g. `/data/shows/my-show:/videos:ro`). Absolute host paths pass through unchanged; relative paths are resolved from `director.config.yaml`. Required when your config references local video files. |
 
 > Director derives each channel's `id` from `stream.channel_id` (if set) or by converting `stream.name` to `snake_case`. The Docker service name is `reeltime-{id}`.
 

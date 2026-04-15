@@ -1,8 +1,8 @@
-# Reeltime — Claude Instructions
+# Reeltime - Claude Instructions
 
 ## Writing style
 
-- **US English** throughout — code, comments, docs, YAML, scripts, responses. Use "behavior" not "behaviour", "color" not "colour", "initialize" not "initialise", etc.
+- **US English** throughout - code, comments, docs, YAML, scripts, responses. Use "behavior" not "behaviour", "color" not "colour", "initialize" not "initialise", etc.
 - **No em dashes** — use ` - ` (space, hyphen, space) as a separator. Never use `—` or `--` as a prose separator.
 - **No emojis** unless the user explicitly asks for them.
 

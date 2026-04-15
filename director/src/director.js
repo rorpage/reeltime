@@ -71,7 +71,7 @@ function deriveChannelId(ch) {
  * @param {string|null} urlOverride  Optional URL override (skips auto-derivation)
  * @returns {{ id, name, icon, url, port, configPath }}
  */
-function readChannelConfig(absPath, index, urlOverride) {
+function readChannelConfig(absPath, index, urlOverride, volumes) {
   if (!fs.existsSync(absPath)) {
     throw new Error(`Reeltime config not found: ${absPath}`);
   }
@@ -89,7 +89,7 @@ function readChannelConfig(absPath, index, urlOverride) {
 
   const description = String(raw?.stream?.description || '');
 
-  return { id, name, icon, description, url, port, channelNum: index + 1, type: 'reel', environment: {}, configPath: absPath };
+  return { id, name, icon, description, url, port, channelNum: index + 1, type: 'reel', environment: {}, volumes: volumes || [], configPath: absPath };
 }
 
 /**
@@ -157,11 +157,12 @@ function loadConfig(filePath) {
     if (typeof entry === 'object' && entry !== null && entry.type && !entry.path) {
       return parseInlineChannel(entry, i);
     }
-    // File-based (reel): bare string path  OR  { path, url }
+    // File-based (reel): bare string path  OR  { path, url, volumes }
     const cfgPath     = typeof entry === 'string' ? entry : String(entry.path);
     const urlOverride = typeof entry === 'object' && entry.url ? String(entry.url) : null;
+    const volumes     = (typeof entry === 'object' && Array.isArray(entry.volumes)) ? entry.volumes.map(String) : [];
     const absPath     = path.isAbsolute(cfgPath) ? cfgPath : path.resolve(configDir, cfgPath);
-    return readChannelConfig(absPath, i, urlOverride);
+    return readChannelConfig(absPath, i, urlOverride, volumes);
   });
 
   return { directorName, port, channels };
@@ -288,6 +289,27 @@ function generateCompose(directorConfigPath, useImages = false) {
         `      - "${ch.port}:${internalPort}"`,
         '    volumes:',
         `      - ${chDirRel}:/config`,
+      );
+
+      // Extra user-specified volumes
+      if (ch.volumes && ch.volumes.length > 0) {
+        ch.volumes.forEach(vol => {
+          // vol format: "host-path:container-path" or "host-path:container-path:options"
+          const colonIdx = vol.indexOf(':');
+          const hostRaw  = colonIdx === -1 ? vol : vol.slice(0, colonIdx);
+          const rest     = colonIdx === -1 ? '' : vol.slice(colonIdx); // includes leading ':'
+          // Absolute host paths pass through unchanged so the generated compose
+          // references the real host filesystem path (e.g. /data/shows/show-name).
+          // Relative host paths are resolved against cfgDir and re-expressed relative
+          // to the compose file (which lives next to director.config.yaml).
+          const outHost = path.isAbsolute(hostRaw)
+            ? hostRaw
+            : rel(path.resolve(cfgDir, hostRaw));
+          lines.push(`      - ${outHost}${rest}`);
+        });
+      }
+
+      lines.push(
         '    environment:',
         `      PORT:             "${internalPort}"`,
         `      CONFIG_PATH:      "/config/${chBase}"`,

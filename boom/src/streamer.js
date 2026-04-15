@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * WS4Channels — WeatherStar 4000 HLS streamer
+ * WS4Channels - WeatherStar 4000 HLS streamer
  *
  * Captures the WS4KP weather display via Puppeteer and streams as HLS,
  * compatible with Channels DVR, Jellyfin, Plex, Emby, and xTeVe/Threadfin.
@@ -58,7 +58,7 @@ const CFG = {
   executablePath:   process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
 };
 
-// Screenshot crop region — widescreen WS4KP (WSQS_settings_wide_checkbox=true)
+// Screenshot crop region - widescreen WS4KP (WSQS_settings_wide_checkbox=true)
 // x=4, y=50 trims chrome UI; 840×470 is the 16:9 weather content area.
 const CROP = {
   x:      +(process.env.CROP_X      || 4),
@@ -280,7 +280,7 @@ async function initBrowser() {
       await page.waitForSelector('div.weather-display, #weather-content', { timeout: 30_000 });
     }
   } catch {
-    warn('ZIP entry timed out — proceeding with default location');
+    warn('ZIP entry timed out - proceeding with default location');
   }
 
   info('Browser ready');
@@ -402,12 +402,12 @@ async function start() {
 
   if (CFG.audioSource === 'mp3') {
     if (!buildAudioList({ musicDir: CFG.musicDir, shuffle: CFG.shuffleMusic, listPath: AUDIO_LIST, info, warn })) {
-      warn('No MP3 files found — falling back to silent audio');
+      warn('No MP3 files found - falling back to silent audio');
       CFG.audioSource = 'silent';
     }
   } else if (CFG.audioSource === 'http') {
     if (!CFG.audioUrl) {
-      warn('AUDIO_SOURCE=http but AUDIO_URL is not set — falling back to silent');
+      warn('AUDIO_SOURCE=http but AUDIO_URL is not set - falling back to silent');
       CFG.audioSource = 'silent';
     } else {
       info(`HTTP audio stream: ${CFG.audioUrl}`);

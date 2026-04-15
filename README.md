@@ -110,8 +110,7 @@ M3U/XMLTV-compatible app.
 
 ---
 
-For more options - multiple reel channels, Scout web-page capture, custom ports,
-and state persistence — see the [Director README](director/README.md).
+For more options - multiple reel channels, Scout web-page capture, custom ports, and state persistence - see the [Director README](director/README.md).
 
 ---
 
@@ -121,7 +120,7 @@ Utilities in the `tools/` folder for working with content.
 
 | Tool | Description |
 |------|-------------|
-| [archive-org-import](tools/archive-org-import/README.md) | Import Archive.org content into a Reeltime config — single items or bulk season/episode ranges |
+| [archive-org-import](tools/archive-org-import/README.md) | Import Archive.org content into a Reeltime config - single items or bulk season/episode ranges |
 | [convert-mkv](tools/convert-mkv/README.md) | Pre-transcode MKV files to H.264 MP4 to prevent buffering when streaming x265/10-bit sources |
 | [merge-configs](tools/merge-configs/README.md) | Merge an Archive.org config (real URLs, durations) with a TVmaze config (clean metadata) into one, keyed on episode number |
-| [tvmaze-import](tools/tvmaze-import/README.md) | Generate a Reeltime config scaffold from TVmaze episode data — fills in all metadata, leaving URL fields for you to complete |
+| [tvmaze-import](tools/tvmaze-import/README.md) | Generate a Reeltime config scaffold from TVmaze episode data - fills in all metadata, leaving URL fields for you to complete |

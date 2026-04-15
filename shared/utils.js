@@ -73,13 +73,13 @@ function stripHtml(s) {
     .replace(/&gt;/g,           '>')
     .replace(/&quot;/g,         '"')
     .replace(/&#039;|&apos;/g,  "'")
-    .replace(/&amp;/g,          '&')  // always last — avoids double-decoding
+    .replace(/&amp;/g,          '&')  // always last - avoids double-decoding
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * Fisher-Yates shuffle — returns a new shuffled array, does not mutate the input.
+ * Fisher-Yates shuffle - returns a new shuffled array, does not mutate the input.
  *
  * @template T
  * @param {T[]} arr
