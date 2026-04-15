@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Reeltime Director — Configuration
+# Reeltime Director - Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # After editing this file, regenerate docker-compose.director.yml with:
@@ -24,7 +24,7 @@ configs:
   #   url:  http://my-other-host:9000
 
   # ── Boom channels (WeatherStar 4000) ──────────────────────────────────────
-  # Inline spec — no config file needed. `mark` generates the boom container
+  # Inline spec - no config file needed. `mark` generates the boom container
   # with the environment variables you supply here.
   #
   # - name:        "WeatherStar 4000"

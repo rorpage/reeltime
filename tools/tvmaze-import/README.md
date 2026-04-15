@@ -54,7 +54,7 @@ node tools/tvmaze-import/tvmaze_import.js --id 49
 node tools/tvmaze-import/tvmaze_import.js --id 49 --season 2 --output brooklyn-nine-nine-s02.yaml
 ```
 
-Find a show's TVmaze ID in its page URL — for example `https://www.tvmaze.com/shows/49/brooklyn-nine-nine` has ID `49`.
+Find a show's TVmaze ID in its page URL - for example `https://www.tvmaze.com/shows/49/brooklyn-nine-nine` has ID `49`.
 
 ---
 

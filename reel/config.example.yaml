@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Reeltime — Playlist Configuration
+# Reeltime - Playlist Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
 stream:
@@ -13,18 +13,18 @@ stream:
 
 videos:
   # Required fields
-  #   title    — shown in logs, /now, /xmltv, player ticker
-  #   url      — http/https/rtmp/file supported
-  #   duration — seconds of this clip to stream (can be < actual video length)
+  #   title    - shown in logs, /now, /xmltv, player ticker
+  #   url      - http/https/rtmp/file supported
+  #   duration - seconds of this clip to stream (can be < actual video length)
   #
   # Optional XMLTV metadata
-  #   series_title — XMLTV <title> for episodic content (for example, show name)
-  #   sub_title    — XMLTV <sub-title> (for example, episode name)
-  #   episode_num  — XMLTV onscreen episode number (for example, S01E07)
-  #   date         — XMLTV date (YYYYMMDD or YYYY)
-  #   description — shown in Jellyfin/Plex guide detail view (defaults to title)
-  #   category    — genre tag in XMLTV  (defaults to "Movie")
-  #   icon        — optional XMLTV programme icon URL
+  #   series_title - XMLTV <title> for episodic content (for example, show name)
+  #   sub_title    - XMLTV <sub-title> (for example, episode name)
+  #   episode_num  - XMLTV onscreen episode number (for example, S01E07)
+  #   date         - XMLTV date (YYYYMMDD or YYYY)
+  #   description - shown in Jellyfin/Plex guide detail view (defaults to title)
+  #   category    - genre tag in XMLTV  (defaults to "Movie")
+  #   icon        - optional XMLTV programme icon URL
   #                 Common values: Movie · Sports · News · Documentary
   #                                Entertainment · Children · Series
 

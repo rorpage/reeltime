@@ -2,7 +2,7 @@
 
 A Dockerized companion service for [Reeltime](https://github.com/rorpage/reeltime)
 that streams the [WeatherStar 4000 Plus (WS4KP)](https://github.com/netbymatt/ws4kp)
-weather display as a live HLS channel — compatible with Channels DVR, Jellyfin,
+weather display as a live HLS channel - compatible with Channels DVR, Jellyfin,
 Plex, Emby, xTeVe, Threadfin, and any IPTV player that supports M3U/XMLTV.
 
 ## Prerequisites
@@ -53,7 +53,7 @@ docker run -p 9798:9798 \
 |---|---|
 | `GET /` | Embedded HLS.js web player with now-playing ticker |
 | `GET /stream.m3u8` | Live HLS playlist |
-| `GET /now` | JSON now-playing — 1-hour "Live Weather" blocks (`?upcoming=N`) |
+| `GET /now` | JSON now-playing - 1-hour "Live Weather" blocks (`?upcoming=N`) |
 | `GET /channels.m3u` | M3U tuner (Channels DVR / Jellyfin / Plex) |
 | `GET /playlist.m3u` | Alias for `/channels.m3u` |
 | `GET /xmltv` | XMLTV guide (`?hours=1-24`, default 4) |
@@ -63,7 +63,7 @@ docker run -p 9798:9798 \
 
 ## Using with Director
 
-Boom integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
+Boom integrates with [Reeltime Director](../director/README.md) as an inline channel - no config file needed. Add it to `director.config.yaml`:
 
 ```yaml
 configs:
@@ -107,10 +107,10 @@ Then re-run `mark` to regenerate your compose file. Director will show 1-hour
 | `CHANNEL_NAME` | `WeatherStar 4000` | Display name |
 | `CHANNEL_NUMBER` | `275` | Channel number in M3U |
 | `CHANNEL_ICON` | *(auto)* | URL to channel icon (defaults to `/logo/ws4000.png`) |
-| `CROP_X` | `4` | Screenshot crop — left offset |
-| `CROP_Y` | `50` | Screenshot crop — top offset |
-| `CROP_WIDTH` | `840` | Screenshot crop — width |
-| `CROP_HEIGHT` | `470` | Screenshot crop — height |
+| `CROP_X` | `4` | Screenshot crop - left offset |
+| `CROP_Y` | `50` | Screenshot crop - top offset |
+| `CROP_WIDTH` | `840` | Screenshot crop - width |
+| `CROP_HEIGHT` | `470` | Screenshot crop - height |
 | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` | Chromium binary path |
 
 ## Audio

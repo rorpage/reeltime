@@ -31,7 +31,7 @@ const BASE_URL = 'https://api.tvmaze.com';
 
 // ─── TVmaze API ───────────────────────────────────────────────────────────────
 
-/** Fetch a show directly by its TVmaze ID — skips the search/relevance step. */
+/** Fetch a show directly by its TVmaze ID - skips the search/relevance step. */
 async function getShowById(id) {
   const res = await fetch(`${BASE_URL}/shows/${id}`);
   if (res.status === 404) throw new Error(`No show found with TVmaze ID: ${id}`);
@@ -45,7 +45,7 @@ async function searchShow(query) {
   if (!res.ok) throw new Error(`Search failed: ${res.status} ${res.statusText}`);
   const results = await res.json();
   if (!results.length) throw new Error(`No shows found matching: "${query}"`);
-  // TVmaze returns results sorted by relevance — index 0 is the best match
+  // TVmaze returns results sorted by relevance - index 0 is the best match
   return results[0].show;
 }
 
@@ -174,13 +174,13 @@ function generateYaml(show, episodes) {
 
   const header = [
     `# ${hr}`,
-    `# Reeltime — Playlist Configuration`,
+    `# Reeltime - Playlist Configuration`,
     `# ${hr}`,
     `# Show:      ${show.name}`,
     `# Seasons:   ${seasonCount}`,
     `# Episodes:  ${episodes.length}`,
     `# Generated: ${timestamp}`,
-    `# Source:    TVmaze — https://www.tvmaze.com/shows/${show.id}/${slugify(show.name)}`,
+    `# Source:    TVmaze - https://www.tvmaze.com/shows/${show.id}/${slugify(show.name)}`,
     `# ${hr}`,
     `#`,
     `# ⚠  The "url" field for each episode is intentionally left blank.`,
@@ -321,7 +321,7 @@ async function main() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Exports (for testing) — only when not the entry-point
+// Exports (for testing) - only when not the entry-point
 // ─────────────────────────────────────────────────────────────────────────────
 
 if (require.main !== module) {

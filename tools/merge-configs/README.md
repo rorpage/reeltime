@@ -107,4 +107,4 @@ node tools/merge-configs/merge_configs.js \
 - **Unmatched entries** are included as-is with a warning to stderr. Archive-only entries have real URLs; TVmaze-only entries will have a blank URL with a `# TODO` comment.
 - **Entries without `episode_num`** in the archive config can't be matched and are appended at the end as-is.
 - The `stream:` block is taken from the TVmaze config (which has the proper show name). If the TVmaze config has no `stream:` block, the archive config's block is used.
-- Re-running is safe — the output file is always fully regenerated from the two source configs.
+- Re-running is safe - the output file is always fully regenerated from the two source configs.

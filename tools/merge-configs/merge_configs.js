@@ -233,7 +233,7 @@ function main() {
   for (const e of tvmazeEntries) {
     const ep = getField(e, 'episode_num');
     if (ep) byEpT.set(ep.toUpperCase(), e);
-    // TVmaze entries without episode_num are skipped — they have no URL anyway
+    // TVmaze entries without episode_num are skipped - they have no URL anyway
   }
 
   const sortedKeys = [...new Set([...byEpA.keys(), ...byEpT.keys()])].sort();
@@ -247,14 +247,14 @@ function main() {
 
     if (a && t)   matched++;
     else if (a) { archiveOnly++; console.warn(`[merge] WARN: ${key} found in archive config only`); }
-    else        { tvmazeOnly++;  console.warn(`[merge] WARN: ${key} found in tvmaze config only — url will be blank`); }
+    else        { tvmazeOnly++;  console.warn(`[merge] WARN: ${key} found in tvmaze config only - url will be blank`); }
 
     blocks.push(renderEntry(mergeEntry(a, t)));
   }
 
-  // Archive entries without episode_num can't be matched — include as-is at the end
+  // Archive entries without episode_num can't be matched - include as-is at the end
   if (noEpA.length) {
-    console.warn(`[merge] WARN: ${noEpA.length} archive entry/entries with no episode_num — appended as-is`);
+    console.warn(`[merge] WARN: ${noEpA.length} archive entry/entries with no episode_num - appended as-is`);
     blocks.push(...noEpA);
   }
 
