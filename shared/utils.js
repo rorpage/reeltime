@@ -116,7 +116,7 @@ function buildAudioList({ musicDir, shuffle, listPath, info, warn }) {
   }
   if (files.length === 0) return false;
   if (shuffle) files = shuffleArray(files);
-  const lines = files.map(f => `file "${path.join(musicDir, f).replace(/"/g, '\\"')}"`).join('\n');
+  const lines = files.map(f => `file '${path.join(musicDir, f).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`).join('\n');
   fs.writeFileSync(listPath, lines + '\n');
   info(`Loaded ${files.length} music file(s)${shuffle ? ' (shuffled)' : ''}`);
   return true;
