@@ -4,7 +4,7 @@
 # Requires a running WS4KP instance (https://github.com/netbymatt/ws4kp)
 # with the widescreen flag set:  WSQS_settings_wide_checkbox=true
 #
-# Build:  docker build -t boom boom/
+# Build:  docker build -t boom -f boom/Dockerfile .
 # Run:    docker run -p 9798:9798 \
 #           -e ZIP_CODE=63101 \
 #           -e WS4KP_HOST=192.168.1.100 \
@@ -48,14 +48,16 @@ WORKDIR /app
 # Tell puppeteer-core which Chromium binary to use (system-installed above)
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-COPY package.json package-lock.json ./
+COPY boom/package.json boom/package-lock.json ./
 RUN npm ci --only=production && npm cache clean --force
 
-COPY src/ ./src/
+COPY boom/src/ ./boom/src/
+COPY shared/ ./shared/
+COPY boom/music/ /music/
 
 # ── Runtime directories ───────────────────────────────────────────────────────
 #   /tmp/hls  — HLS segments + playlist (written at runtime)
-#   /music    — mount MP3 files here for background music (optional)
+#   /music    — default MP3s baked in; override by mounting your own directory
 #   /logo     — mount logo PNG files here (optional)
 RUN mkdir -p /tmp/hls /music /logo
 
@@ -71,6 +73,8 @@ ENV PORT=9798 \
     VIDEO_BITRATE=1000k \
     AUDIO_BITRATE=128k \
     MUSIC_VOLUME=0.5 \
+    AUDIO_SOURCE=mp3 \
+    AUDIO_VOLUME=1.0 \
     SHUFFLE_MUSIC=false \
     HLS_SEG=2 \
     HLS_SIZE=5 \
@@ -91,4 +95,4 @@ HEALTHCHECK --interval=30s \
             --retries=3 \
     CMD wget -qO /dev/null http://localhost:${PORT}/health || exit 1
 
-CMD ["node", "src/streamer.js"]
+CMD ["node", "boom/src/streamer.js"]

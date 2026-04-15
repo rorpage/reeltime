@@ -4,7 +4,7 @@
 # Captures any URL in a headless Chromium browser and streams it as HLS.
 # Exposes the same endpoint set as Reeltime.
 #
-# Build:  docker build -t scout scout/
+# Build:  docker build -t scout -f scout/Dockerfile .
 # Run:    docker run -p 8080:8080 \
 #           -e CAPTURE_URL=http://myapp:8080 \
 #           -e CHANNEL_NAME="My Channel" \
@@ -49,14 +49,16 @@ WORKDIR /app
 # Tell puppeteer-core which Chromium binary to use (system-installed above)
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-COPY package.json package-lock.json ./
+COPY scout/package.json scout/package-lock.json ./
 RUN npm ci --only=production && npm cache clean --force
 
-COPY src/ ./src/
+COPY scout/src/ ./scout/src/
+COPY shared/ ./shared/
 
 # ── Runtime directories ───────────────────────────────────────────────────────
 #   /tmp/hls  — HLS segments + playlist (written at runtime)
-RUN mkdir -p /tmp/hls
+#   /music    — mount MP3 files here (optional, for AUDIO_SOURCE=mp3)
+RUN mkdir -p /tmp/hls /music
 
 # ── Environment defaults ──────────────────────────────────────────────────────
 #   CAPTURE_URL is required and has no default — the container will exit
@@ -66,6 +68,11 @@ ENV PORT=8080 \
     FRAME_RATE=1 \
     VIDEO_BITRATE=1000k \
     AUDIO_BITRATE=128k \
+    AUDIO_SOURCE=silent \
+    AUDIO_VOLUME=1.0 \
+    MUSIC_DIR=/music \
+    MUSIC_VOLUME=0.5 \
+    SHUFFLE_MUSIC=false \
     HLS_SEG=6 \
     HLS_SIZE=10 \
     RESOLUTION=1280:720 \
@@ -86,4 +93,4 @@ HEALTHCHECK --interval=30s \
             --retries=3 \
     CMD wget -qO /dev/null http://localhost:${PORT}/health || exit 1
 
-CMD ["node", "src/streamer.js"]
+CMD ["node", "scout/src/streamer.js"]

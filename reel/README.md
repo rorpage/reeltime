@@ -1,4 +1,4 @@
-# Reeltime
+# 🎥 Reel
 
 Reeltime is a self-hosted continuous HLS video streamer built with Node.js and ffmpeg.
 It reads a YAML playlist and streams videos in a continuous loop as a live m3u8 feed.

@@ -1,33 +1,14 @@
-# Scout
+# 🧢 Scout
 
 A Dockerized companion service for [Reeltime](https://github.com/rorpage/reeltime)
 that captures **any web page** as a live HLS stream using Puppeteer and ffmpeg.
 Point it at a dashboard, status display, weather app, or any browser-renderable
-URL — Scout streams it continuously over HLS.
+URL — Scout streams it continuously over HLS, compatible with Channels DVR,
+Jellyfin, Plex, Emby, and any M3U/XMLTV-aware client.
 
-Scout exposes the same endpoint set as Reeltime, so it works out of the box with
-Channels DVR, Jellyfin, Plex, Emby, and any M3U/XMLTV-aware client.
+## Running
 
-## How it works
-
-1. A headless Chromium browser (Puppeteer) opens `CAPTURE_URL`.
-2. Screenshots are taken at `FRAME_RATE` fps and piped into ffmpeg as a JPEG
-   image stream.
-3. ffmpeg encodes the frames as HLS segments.
-4. A Node.js HTTP server (no Express) serves the stream and all companion
-   endpoints.
-
-## Quick start (docker compose)
-
-```bash
-# Copy and edit the environment file
-cp scout/.env.example .env
-
-# Set CAPTURE_URL and any other options, then start
-docker compose up -d scout
-```
-
-## Manual run
+### Prebuilt image
 
 ```bash
 docker run -d \
@@ -41,9 +22,19 @@ docker run -d \
   ghcr.io/rorpage/reeltime-scout:latest
 ```
 
-## Endpoints
+### Build from source
 
-All endpoints match Reeltime exactly.
+Run from the **repo root**:
+
+```bash
+docker build -t scout -f scout/Dockerfile .
+docker run -p 8080:8080 \
+  -e CAPTURE_URL=http://192.168.1.100:8080 \
+  -e CHANNEL_NAME="My Dashboard" \
+  scout
+```
+
+## Endpoints
 
 | Endpoint | Description |
 |---|---|
@@ -57,6 +48,24 @@ All endpoints match Reeltime exactly.
 | `GET /playlist.m3u` | Alias for `/channels.m3u` |
 | `GET /health` | JSON health check |
 
+## Using with Director
+
+Scout integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
+
+```yaml
+configs:
+  - ./channels/my_reel_channel/config.yaml   # existing reel channel
+
+  - name:        "My Dashboard"
+    type:        scout
+    description: "Live dashboard capture"
+    environment:
+      CAPTURE_URL: "https://example.com/dashboard"
+      FRAME_RATE:  "2"
+```
+
+Then re-run `mark` to regenerate your compose file.
+
 ## Environment variables
 
 | Variable | Default | Description |
@@ -66,7 +75,13 @@ All endpoints match Reeltime exactly.
 | `FRAME_RATE` | `1` | Screenshot capture rate (fps) |
 | `RESOLUTION` | `1280:720` | Output video resolution |
 | `VIDEO_BITRATE` | `1000k` | ffmpeg video bitrate |
-| `AUDIO_BITRATE` | `128k` | ffmpeg audio bitrate (silent track) |
+| `AUDIO_BITRATE` | `128k` | ffmpeg audio bitrate |
+| `AUDIO_SOURCE` | `silent` | Audio mode: `silent`, `mp3`, or `http` |
+| `AUDIO_URL` | *(none)* | HTTP audio stream URL (required when `AUDIO_SOURCE=http`) |
+| `AUDIO_VOLUME` | `1.0` | Volume for `http` mode (0.0–1.0) |
+| `MUSIC_DIR` | `/music` | Directory of MP3 files for `mp3` mode |
+| `MUSIC_VOLUME` | `0.5` | Volume for `mp3` mode (0.0–1.0) |
+| `SHUFFLE_MUSIC` | `false` | Randomize MP3 playback order |
 | `HLS_SEG` | `6` | Seconds per HLS segment |
 | `HLS_SIZE` | `10` | Playlist window (number of segments) |
 | `CHANNEL_ID` | `scout` | Stable XMLTV/M3U channel ID |
@@ -90,10 +105,16 @@ variables to focus on a specific region (e.g., trim browser chrome):
 -e CROP_X=4 -e CROP_Y=50 -e CROP_WIDTH=840 -e CROP_HEIGHT=470
 ```
 
+## Audio
+
+By default Scout outputs a silent audio track. To add audio, set `AUDIO_SOURCE`:
+
+- **`mp3`** — loop MP3 files; mount a directory to `/music`: `-v ./music:/music:ro`
+- **`http`** — pull from an HTTP stream; set `AUDIO_URL` to the stream URL
+
 ## Frame rate
 
-`FRAME_RATE=1` (one screenshot per second) is appropriate for slowly-updating
-pages like dashboards and weather displays. Increase it for smoother motion:
+`FRAME_RATE=1` is appropriate for slowly-updating pages. Increase for smoother motion:
 
 | Content type | Suggested `FRAME_RATE` |
 |---|---|
@@ -101,49 +122,24 @@ pages like dashboards and weather displays. Increase it for smoother motion:
 | Animated charts / map tiles | 5–10 |
 | Interactive UI demos | 15–30 |
 
-Higher frame rates increase CPU usage. Keep `VIDEO_BITRATE` and `FRAME_RATE`
-proportional to avoid quality loss.
+Higher frame rates increase CPU usage proportionally.
 
 ## Resource requirements
 
 - RAM: ~850 MB (Chromium + ffmpeg + Node.js)
-- CPU: 1 core (at `FRAME_RATE=1`; increase for higher frame rates)
-
-## Using with Director
-
-Scout integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
-
-```yaml
-configs:
-  - ./channels/my_reel_channel/config.yaml   # existing reel channel
-
-  - name:        "My Dashboard"
-    type:        scout
-    description: "Live dashboard capture"
-    environment:
-      CAPTURE_URL: "https://example.com/dashboard"
-      FRAME_RATE:  "2"
-```
-
-Then re-run `mark` to regenerate your compose file.
+- CPU: 1 core (at `FRAME_RATE=1`; scale up for higher frame rates)
 
 ## `/now` response
 
-Scout returns clock-aligned 1-hour blocks using `CHANNEL_NAME` as the title and
-`CAPTURE_URL` as the description. Blocks are always snapped to the hour boundary
-(1:00–2:00, 2:00–3:00, …) regardless of when the container started.
-
-Supports `?upcoming=N` to include N future blocks — used by Director to fill the
-2-hour guide window.
+Returns clock-aligned 1-hour blocks using `CHANNEL_NAME` as the title and the
+captured page's `<title>` as the description. Supports `?upcoming=N` for
+Director's guide window.
 
 ```json
 {
   "current": {
     "title":       "My Dashboard",
-    "seriesTitle": "",
-    "subTitle":    "",
-    "episodeNum":  "",
-    "description": "https://example.com/dashboard",
+    "description": "My Dashboard — Live View",
     "duration":    3600,
     "position":    742.3,
     "remaining":   2857.7,
@@ -156,14 +152,6 @@ Supports `?upcoming=N` to include N future blocks — used by Director to fill t
     "duration": 3600,
     "startsAt": "2026-04-08T18:00:00.000Z"
   },
-  "upcoming": [
-    {
-      "title":    "My Dashboard",
-      "duration": 3600,
-      "startsAt": "2026-04-08T18:00:00.000Z",
-      "endsAt":   "2026-04-08T19:00:00.000Z"
-    }
-  ],
   "stream": "http://host/stream.m3u8"
 }
 ```

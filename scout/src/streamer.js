@@ -26,7 +26,7 @@ const fs          = require('node:fs');
 const path        = require('node:path');
 const http        = require('node:http');
 const puppeteer   = require('puppeteer-core');
-const { escHtml, escXML } = require('../../shared/utils');
+const { escHtml, escXML, shuffleArray, buildAudioList } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -48,6 +48,12 @@ const CFG = {
   channelNumber:     process.env.CHANNEL_NUMBER    || '1',
   waitUntil:         process.env.WAIT_UNTIL        || 'networkidle2',
   executablePath:    process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
+  audioSource:       process.env.AUDIO_SOURCE?.toLowerCase() || 'silent',
+  audioUrl:          process.env.AUDIO_URL        || '',
+  audioVolume:      +(process.env.AUDIO_VOLUME    || 1.0),
+  musicDir:          process.env.MUSIC_DIR        || '/music',
+  musicVolume:      +(process.env.MUSIC_VOLUME    || 0.5),
+  shuffleMusic:      process.env.SHUFFLE_MUSIC?.toLowerCase() === 'true',
   debug:             process.env.DEBUG === '1',
 };
 
@@ -64,8 +70,9 @@ if (!CFG.captureUrl) {
   process.exit(1);
 }
 
-const [VW, VH] = CFG.resolution.split(':').map(Number);
-const GOP       = CFG.frameRate * CFG.hlsSeg;
+const [VW, VH]  = CFG.resolution.split(':').map(Number);
+const GOP        = CFG.frameRate * CFG.hlsSeg;
+const AUDIO_LIST = path.join(CFG.hlsDir, 'audio_list.txt');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Logging
@@ -88,6 +95,7 @@ let captureTimer = null;
 let readyTimer   = null;
 let isReady      = false;
 let streamStart  = null;   // epoch-ms when ffmpeg first declared ready
+let pageTitle    = '';     // <title> of the captured page; falls back to captureUrl
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -125,7 +133,7 @@ function buildXMLTV(host, hours) {
     const stop = t + 3_600_000;
     programmes += `  <programme start="${toXMLTVDate(t)}" stop="${toXMLTVDate(stop)}" channel="${escXML(CFG.channelId)}">
     <title lang="en">${escXML(CFG.channelName)}</title>
-    <desc lang="en">${escXML(CFG.captureUrl)}</desc>
+    <desc lang="en">${escXML(pageTitle || CFG.captureUrl)}</desc>
   </programme>\n`;
   }
 
@@ -193,7 +201,7 @@ function buildPlayerHTML() {
   </style>
 </head>
 <body>
-  <h1>🎬 ${n}</h1>
+  <h1>📺 ${n}</h1>
   <video id="v" controls autoplay muted playsinline></video>
   <div id="prog-wrap"><div id="prog-bar"></div></div>
   <div id="now">Loading…</div>
@@ -275,6 +283,8 @@ async function initBrowser() {
     timeout: 30_000,
   });
 
+  pageTitle = (await page.title()) || CFG.captureUrl;
+  info(`Page title: ${pageTitle}`);
   info('Browser ready');
 }
 
@@ -283,7 +293,8 @@ async function initBrowser() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildFfmpegArgs() {
-  return [
+  const mode = CFG.audioSource;
+  const args = [
     '-y', '-hide_banner',
     '-loglevel', CFG.debug ? 'info' : 'warning',
 
@@ -291,20 +302,32 @@ function buildFfmpegArgs() {
     '-f', 'image2pipe',
     '-framerate', String(CFG.frameRate),
     '-i', 'pipe:0',
+  ];
 
-    // Audio input: silent (no background music — scout is display-only)
-    '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=stereo`,
+  // Audio input (index 1)
+  if (mode === 'mp3') {
+    args.push('-stream_loop', '-1', '-f', 'concat', '-safe', '0', '-i', AUDIO_LIST);
+  } else if (mode === 'http') {
+    args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-i', CFG.audioUrl);
+  } else {
+    args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
+  }
 
-    // Filters
-    '-vf', [
-      `scale=${VW}:${VH}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
-      `pad=${VW}:${VH}:(ow-iw)/2:(oh-ih)/2:black`,
-      'format=yuv420p',
-    ].join(','),
+  const hasAudio  = mode === 'mp3' || mode === 'http';
+  const vol       = mode === 'mp3' ? CFG.musicVolume : CFG.audioVolume;
+  const videoChain = [
+    `scale=${VW}:${VH}:force_original_aspect_ratio=decrease:force_divisible_by=2`,
+    `pad=${VW}:${VH}:(ow-iw)/2:(oh-ih)/2:black`,
+    'format=yuv420p',
+  ].join(',');
+  const filterComplex = hasAudio
+    ? `[0:v]${videoChain}[v];[1:a]volume=${vol}[a]`
+    : `[0:v]${videoChain}[v]`;
 
-    // Maps
-    '-map', '0:v',
-    '-map', '1:a',
+  args.push(
+    '-filter_complex', filterComplex,
+    '-map', '[v]',
+    '-map', hasAudio ? '[a]' : '1:a',
 
     // Video encoding
     '-c:v',          'libx264',
@@ -334,7 +357,9 @@ function buildFfmpegArgs() {
     '-hls_segment_type',     'mpegts',
     '-hls_segment_filename', path.join(CFG.hlsDir, 'seg_%06d.ts'),
     path.join(CFG.hlsDir, 'stream.m3u8'),
-  ];
+  );
+
+  return args;
 }
 
 function startFfmpeg() {
@@ -409,12 +434,27 @@ function startCapture() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function start() {
-  fs.mkdirSync(CFG.hlsDir, { recursive: true });
+  fs.mkdirSync(CFG.hlsDir,   { recursive: true });
+  fs.mkdirSync(CFG.musicDir, { recursive: true });
 
   // Remove stale HLS files from a previous run
   const stale = fs.readdirSync(CFG.hlsDir).filter(f => f.endsWith('.ts') || f.endsWith('.m3u8'));
   stale.forEach(f => { try { fs.unlinkSync(path.join(CFG.hlsDir, f)); } catch {} });
   if (stale.length) info(`Cleaned ${stale.length} stale HLS file(s)`);
+
+  if (CFG.audioSource === 'mp3') {
+    if (!buildAudioList({ musicDir: CFG.musicDir, shuffle: CFG.shuffleMusic, listPath: AUDIO_LIST, info, warn })) {
+      warn('No MP3 files found — falling back to silent audio');
+      CFG.audioSource = 'silent';
+    }
+  } else if (CFG.audioSource === 'http') {
+    if (!CFG.audioUrl) {
+      warn('AUDIO_SOURCE=http but AUDIO_URL is not set — falling back to silent');
+      CFG.audioSource = 'silent';
+    } else {
+      info(`HTTP audio stream: ${CFG.audioUrl}`);
+    }
+  }
 
   await initBrowser();
   startFfmpeg();
@@ -501,7 +541,7 @@ function startServer() {
         seriesTitle: '',
         subTitle:    '',
         episodeNum:  '',
-        description: CFG.captureUrl,
+        description: pageTitle || CFG.captureUrl,
         duration:    3600,
       });
 

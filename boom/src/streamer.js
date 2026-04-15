@@ -26,7 +26,7 @@ const fs        = require('node:fs');
 const path      = require('node:path');
 const http      = require('node:http');
 const puppeteer = require('puppeteer-core');
-const { escHtml, escXML } = require('../../shared/utils');
+const { escHtml, escXML, shuffleArray, buildAudioList } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -45,6 +45,9 @@ const CFG = {
   audioBitrate:     process.env.AUDIO_BITRATE   || '128k',
   musicVolume:     +(process.env.MUSIC_VOLUME    || 0.5),
   shuffleMusic:     process.env.SHUFFLE_MUSIC?.toLowerCase() === 'true',
+  audioSource:      process.env.AUDIO_SOURCE?.toLowerCase() || 'mp3',
+  audioUrl:         process.env.AUDIO_URL        || '',
+  audioVolume:     +(process.env.AUDIO_VOLUME    || 1.0),
   hlsSeg:          +(process.env.HLS_SEG         || 2),
   hlsSize:         +(process.env.HLS_SIZE        || 5),
   resolution:       process.env.RESOLUTION      || '1280:720',
@@ -93,15 +96,6 @@ let isReady      = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const waitMs = ms => new Promise(r => setTimeout(r, ms));
-
-function shuffleArray(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Web player HTML
@@ -185,35 +179,6 @@ function buildPlayerHTML() {
   </script>
 </body>
 </html>`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Audio list
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Scan CFG.musicDir for MP3 files and write an ffconcat playlist to AUDIO_LIST.
- * Returns true when at least one file was found, false for silent fallback.
- */
-function buildAudioList() {
-  let files = [];
-  try {
-    files = fs.readdirSync(CFG.musicDir)
-      .filter(f => f.toLowerCase().endsWith('.mp3'));
-  } catch {
-    warn(`Cannot read music directory: ${CFG.musicDir}`);
-  }
-
-  if (files.length === 0) {
-    info('No MP3 files found — audio will be silent');
-    return false;
-  }
-
-  if (CFG.shuffleMusic) files = shuffleArray(files);
-  const lines = files.map(f => `file '${path.join(CFG.musicDir, f)}'`).join('\n');
-  fs.writeFileSync(AUDIO_LIST, lines + '\n');
-  info(`Loaded ${files.length} music file(s)${CFG.shuffleMusic ? ' (shuffled)' : ''}`);
-  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -325,7 +290,8 @@ async function initBrowser() {
 // FFmpeg
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildFfmpegArgs(hasAudio) {
+function buildFfmpegArgs() {
+  const mode = CFG.audioSource;
   const args = [
     // Video: JPEG frames piped into stdin
     '-f', 'image2pipe',
@@ -333,16 +299,19 @@ function buildFfmpegArgs(hasAudio) {
     '-i', 'pipe:0',
   ];
 
-  if (hasAudio) {
-    // Audio: looping MP3 concat playlist
+  if (mode === 'mp3') {
     args.push('-stream_loop', '-1', '-f', 'concat', '-safe', '0', '-i', AUDIO_LIST);
+  } else if (mode === 'http') {
+    args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5', '-i', CFG.audioUrl);
   } else {
-    // Audio: silent fallback
+    // silent fallback
     args.push('-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo');
   }
 
-  const filters = [`[0:v]scale=${VW}:${VH}[v]`];
-  if (hasAudio) filters.push(`[1:a]volume=${CFG.musicVolume}[a]`);
+  const hasAudio = mode === 'mp3' || mode === 'http';
+  const vol      = mode === 'mp3' ? CFG.musicVolume : CFG.audioVolume;
+  const filters  = [`[0:v]scale=${VW}:${VH}[v]`];
+  if (hasAudio) filters.push(`[1:a]volume=${vol}[a]`);
 
   args.push(
     '-filter_complex', filters.join(';'),
@@ -368,15 +337,15 @@ function buildFfmpegArgs(hasAudio) {
   return args;
 }
 
-function startFfmpeg(hasAudio) {
+function startFfmpeg() {
   if (ffmpegProc) {
     try { ffmpegProc.stdin.destroy(); } catch {}
     ffmpegProc.kill('SIGKILL');
     ffmpegProc = null;
   }
 
-  info('Starting ffmpeg');
-  ffmpegProc = spawn('ffmpeg', buildFfmpegArgs(hasAudio), {
+  info(`Starting ffmpeg (audio: ${CFG.audioSource})`);
+  ffmpegProc = spawn('ffmpeg', buildFfmpegArgs(), {
     stdio: ['pipe', 'ignore', 'pipe'],
   });
 
@@ -431,9 +400,22 @@ async function start() {
   fs.mkdirSync(CFG.musicDir, { recursive: true });
   fs.mkdirSync(CFG.logoDir,  { recursive: true });
 
-  const hasAudio = buildAudioList();
+  if (CFG.audioSource === 'mp3') {
+    if (!buildAudioList({ musicDir: CFG.musicDir, shuffle: CFG.shuffleMusic, listPath: AUDIO_LIST, info, warn })) {
+      warn('No MP3 files found — falling back to silent audio');
+      CFG.audioSource = 'silent';
+    }
+  } else if (CFG.audioSource === 'http') {
+    if (!CFG.audioUrl) {
+      warn('AUDIO_SOURCE=http but AUDIO_URL is not set — falling back to silent');
+      CFG.audioSource = 'silent';
+    } else {
+      info(`HTTP audio stream: ${CFG.audioUrl}`);
+    }
+  }
+
   await initBrowser();
-  startFfmpeg(hasAudio);
+  startFfmpeg();
   startCapture();
 }
 

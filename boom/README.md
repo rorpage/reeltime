@@ -1,26 +1,14 @@
-# Boom
+# ⚡ Boom
 
 A Dockerized companion service for [Reeltime](https://github.com/rorpage/reeltime)
 that streams the [WeatherStar 4000 Plus (WS4KP)](https://github.com/netbymatt/ws4kp)
 weather display as a live HLS channel — compatible with Channels DVR, Jellyfin,
 Plex, Emby, xTeVe, Threadfin, and any IPTV player that supports M3U/XMLTV.
 
-## How it works
-
-1. A headless Chromium browser (Puppeteer) loads the WS4KP weather display and
-   enters your ZIP code.
-2. Screenshots are taken at a configurable frame rate and piped into ffmpeg as a
-   JPEG image stream.
-3. ffmpeg mixes the video with looping MP3 background music and outputs HLS
-   segments to disk.
-4. A lightweight Node.js HTTP server serves the stream, M3U playlist, XMLTV
-   guide, web player, and health endpoint.
-
 ## Prerequisites
 
-- Docker installed
-- A running [WS4KP](https://github.com/netbymatt/ws4kp) container with
-  widescreen mode enabled:
+A running [WS4KP](https://github.com/netbymatt/ws4kp) container with widescreen
+mode enabled:
 
 ```bash
 docker run -d \
@@ -31,18 +19,9 @@ docker run -d \
   ghcr.io/netbymatt/ws4kp:latest
 ```
 
-## Quick start (docker compose)
+## Running
 
-```bash
-# Copy and edit the environment file
-cp boom/.env.example .env
-
-# Edit .env — set WS4KP_HOST and ZIP_CODE at minimum
-# Then start the stack
-docker compose up -d boom
-```
-
-## Manual run
+### Prebuilt image
 
 ```bash
 docker run -d \
@@ -50,11 +29,22 @@ docker run -d \
   --restart unless-stopped \
   --memory="1096m" \
   --cpus="1.0" \
-  -p 8080:8080 \
+  -p 9798:9798 \
   -e ZIP_CODE=63101 \
   -e WS4KP_HOST=192.168.1.100 \
-  -e WS4KP_PORT=8080 \
   ghcr.io/rorpage/reeltime-boom:latest
+```
+
+### Build from source
+
+Run from the **repo root**:
+
+```bash
+docker build -t boom -f boom/Dockerfile .
+docker run -p 9798:9798 \
+  -e ZIP_CODE=63101 \
+  -e WS4KP_HOST=192.168.1.100 \
+  boom
 ```
 
 ## Endpoints
@@ -70,38 +60,6 @@ docker run -d \
 | `GET /xmltv.xml` | Alias for `/xmltv` |
 | `GET /guide.xml` | Alias for `/xmltv` |
 | `GET /health` | JSON health check |
-
-## `/now` response
-
-Boom returns clock-aligned 1-hour "Live Weather" blocks snapped to the hour
-boundary (1:00–2:00, 2:00–3:00, …) regardless of when the container started.
-
-Supports `?upcoming=N` to include N future blocks — used by Director to fill
-the 2-hour guide window.
-
-```json
-{
-  "current": {
-    "title":       "Live Weather",
-    "seriesTitle": "",
-    "subTitle":    "",
-    "episodeNum":  "",
-    "description": "WeatherStar 4000",
-    "duration":    3600,
-    "position":    742.3,
-    "remaining":   2857.7,
-    "progress":    0.2062,
-    "startedAt":   "2026-04-08T17:00:00.000Z",
-    "endsAt":      "2026-04-08T18:00:00.000Z"
-  },
-  "next": {
-    "title":    "Live Weather",
-    "duration": 3600,
-    "startsAt": "2026-04-08T18:00:00.000Z"
-  },
-  "stream": "http://host/stream.m3u8"
-}
-```
 
 ## Using with Director
 
@@ -130,7 +88,7 @@ Then re-run `mark` to regenerate your compose file. Director will show 1-hour
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `8080` | HTTP port |
+| `PORT` | `9798` | HTTP port |
 | `ZIP_CODE` | `90210` | ZIP code (or city/state) for weather location |
 | `WS4KP_HOST` | `localhost` | Host running the WS4KP container |
 | `WS4KP_PORT` | `8080` | Port for WS4KP |
@@ -138,8 +96,11 @@ Then re-run `mark` to regenerate your compose file. Director will show 1-hour
 | `RESOLUTION` | `1280:720` | Output video resolution |
 | `VIDEO_BITRATE` | `1000k` | ffmpeg video bitrate |
 | `AUDIO_BITRATE` | `128k` | ffmpeg audio bitrate |
-| `MUSIC_VOLUME` | `0.5` | Background music volume (0.0–1.0) |
-| `SHUFFLE_MUSIC` | `false` | Randomise MP3 playback order |
+| `AUDIO_SOURCE` | `mp3` | Audio mode: `mp3`, `http`, or `silent` |
+| `AUDIO_URL` | *(none)* | HTTP audio stream URL (required when `AUDIO_SOURCE=http`) |
+| `AUDIO_VOLUME` | `1.0` | Volume for `http` mode (0.0–1.0) |
+| `MUSIC_VOLUME` | `0.5` | Volume for `mp3` mode (0.0–1.0) |
+| `SHUFFLE_MUSIC` | `false` | Randomize MP3 playback order |
 | `HLS_SEG` | `2` | Seconds per HLS segment |
 | `HLS_SIZE` | `5` | Playlist window (number of segments) |
 | `CHANNEL_ID` | `weatherstar4000` | Stable XMLTV/M3U channel ID |
@@ -152,26 +113,25 @@ Then re-run `mark` to regenerate your compose file. Director will show 1-hour
 | `CROP_HEIGHT` | `470` | Screenshot crop — height |
 | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` | Chromium binary path |
 
-## Background music
+## Audio
 
-Mount a directory of MP3 files to `/music` inside the container. All `.mp3` files
-found are used; if none are found the stream will have silent audio.
+Default MP3s are baked into the image and play on startup. Mount your own
+directory to override them:
 
-```yaml
-volumes:
-  - ./music:/music:ro
+```bash
+-v ./music:/music:ro
 ```
 
-Set `SHUFFLE_MUSIC=true` to randomise playback order on each startup.
+For an HTTP audio stream instead, set `AUDIO_SOURCE=http` and `AUDIO_URL` to
+the stream URL. Set `AUDIO_SOURCE=silent` to disable audio entirely.
 
 ## Logo
 
 Mount a PNG file to `/logo/ws4000.png` to provide a custom channel icon, or set
-`CHANNEL_ICON` to an external URL.
+`CHANNEL_ICON` to an external URL:
 
-```yaml
-volumes:
-  - ./logo:/logo:ro
+```bash
+-v ./logo:/logo:ro
 ```
 
 ## Resource requirements
@@ -179,6 +139,6 @@ volumes:
 - RAM: ~850 MB (Chromium + ffmpeg + Node.js)
 - CPU: 1 core recommended (`--cpus="1.0"`)
 
-For hardware-accelerated encoding, override the encoding options via environment
-variables or modify `docker-compose.yml` to pass `--device=/dev/dri` (Intel QSV)
-or `--gpus all` (NVIDIA NVENC).
+For hardware-accelerated encoding, pass `--device=/dev/dri` (Intel QSV) or
+`--gpus all` (NVIDIA NVENC) and override the encoding options via environment
+variables.
