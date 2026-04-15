@@ -114,6 +114,11 @@ configs:
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
 
+  # Optional extra volume mounts (for local video files referenced in config.yaml):
+  # - path: ./channels/channel4/config.yaml
+  #   volumes:
+  #     - ./videos:/videos:ro
+
   # ── Scout / Boom channels — inline spec, no config file needed ───────────
   # - name:        "WeatherStar 4000"
   #   type:        boom
@@ -136,6 +141,7 @@ configs:
 | `configs[]`         | **Yes**               | Path to a Reeltime `config.yaml` (string or object with `path`)                 |
 | `configs[].path`    | **Yes** (object form) | Path to a Reeltime config                                                        |
 | `configs[].url`     | No                    | URL override (default: `http://reeltime-<id>:8080`)                             |
+| `configs[].volumes` | No                    | Extra bind mounts added to the reel container (e.g. `./videos:/videos:ro`). Paths are relative to `director.config.yaml`. Required when your config references local video files. |
 
 > Director derives each channel's `id` from `stream.channel_id` (if set) or by converting `stream.name` to `snake_case`. The Docker service name is `reeltime-{id}`.
 

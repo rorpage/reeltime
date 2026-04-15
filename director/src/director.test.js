@@ -391,6 +391,47 @@ test('generateCompose — mounts config directory and sets CONFIG_PATH for each 
   assert.ok(!out.includes('./state/reeltime-'));
 });
 
+test('loadConfig — passes volumes through to channel descriptor', () => {
+  const ch  = writeTmp(reeltimeCfg('Ch'));
+  const dir = writeTmp(`configs:\n  - path: ${ch}\n    volumes:\n      - ./videos:/videos:ro\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.deepEqual(cfg.channels[0].volumes, ['./videos:/videos:ro']);
+});
+
+test('loadConfig — defaults volumes to empty array for bare string entry', () => {
+  const ch  = writeTmp(reeltimeCfg('Ch'));
+  const dir = writeTmp(`configs:\n  - ${ch}\n`);
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.deepEqual(cfg.channels[0].volumes, []);
+});
+
+test('generateCompose — emits extra volume mounts from volumes array', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(`configs:\n  - path: ${ch}\n    volumes:\n      - ./videos:/videos:ro\n`);
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes(':/videos:ro'));
+});
+
+test('generateCompose — no extra volume line when volumes array is empty', () => {
+  const { ch1, ch2, dir } = makeDirectorCfg();
+  const out = generateCompose(dir);
+  [ch1, ch2, dir].forEach(f => fs.unlinkSync(f));
+
+  const volumeLines = out.split('\n').filter(l => l.trim().startsWith('- ') && l.includes(':/'));
+  // Only the /config mount should appear per channel (plus the director config mount)
+  const extraMounts = volumeLines.filter(l => !l.includes(':/config'));
+  assert.equal(extraMounts.length, 0);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. buildAggregatedM3U
 // ─────────────────────────────────────────────────────────────────────────────
