@@ -118,13 +118,14 @@ function parseInlineChannel(entry, index) {
   const description = String(entry.description || '');
   const environment = (entry.environment && typeof entry.environment === 'object')
     ? entry.environment : {};
+  const volumes = (Array.isArray(entry.volumes)) ? entry.volumes.map(String) : [];
   const internalPort = INTERNAL_PORT[type] ?? 8080;
   const resolvedUrl  = entry.url
     ? String(entry.url).replace(/\/$/, '')
     : `http://reeltime-${id}:${internalPort}`;
   const port = 10001 + index;
 
-  return { id, name, icon, description, url: resolvedUrl, port, channelNum: index + 1, type, environment, configPath: null };
+  return { id, name, icon, description, url: resolvedUrl, port, channelNum: index + 1, type, environment, volumes, configPath: null };
 }
 
 /**
@@ -191,6 +192,22 @@ function generateCompose(directorConfigPath, useImages = false) {
   function rel(absPath) {
     const r = path.relative(cfgDir, absPath).replace(/\\/g, '/');
     return r.startsWith('..') ? absPath : `./${r}`;
+  }
+
+  /**
+   * Emit volume lines for a channel's extra volumes array.
+   * Absolute host paths pass through unchanged; relative paths are resolved from cfgDir.
+   */
+  function pushVolumes(volumes) {
+    volumes.forEach(vol => {
+      const colonIdx = vol.indexOf(':');
+      const hostRaw  = colonIdx === -1 ? vol : vol.slice(0, colonIdx);
+      const rest     = colonIdx === -1 ? '' : vol.slice(colonIdx);
+      const outHost  = path.isAbsolute(hostRaw)
+        ? hostRaw
+        : rel(path.resolve(cfgDir, hostRaw));
+      lines.push(`      - ${outHost}${rest}`);
+    });
   }
 
   const dirCfgRel  = rel(path.resolve(directorConfigPath));
@@ -292,22 +309,7 @@ function generateCompose(directorConfigPath, useImages = false) {
       );
 
       // Extra user-specified volumes
-      if (ch.volumes && ch.volumes.length > 0) {
-        ch.volumes.forEach(vol => {
-          // vol format: "host-path:container-path" or "host-path:container-path:options"
-          const colonIdx = vol.indexOf(':');
-          const hostRaw  = colonIdx === -1 ? vol : vol.slice(0, colonIdx);
-          const rest     = colonIdx === -1 ? '' : vol.slice(colonIdx); // includes leading ':'
-          // Absolute host paths pass through unchanged so the generated compose
-          // references the real host filesystem path (e.g. /data/shows/show-name).
-          // Relative host paths are resolved against cfgDir and re-expressed relative
-          // to the compose file (which lives next to director.config.yaml).
-          const outHost = path.isAbsolute(hostRaw)
-            ? hostRaw
-            : rel(path.resolve(cfgDir, hostRaw));
-          lines.push(`      - ${outHost}${rest}`);
-        });
-      }
+      if (ch.volumes && ch.volumes.length > 0) pushVolumes(ch.volumes);
 
       lines.push(
         '    environment:',
@@ -338,6 +340,14 @@ function generateCompose(directorConfigPath, useImages = false) {
         '    restart: unless-stopped',
         '    ports:',
         `      - "${ch.port}:${internalPort}"`,
+      );
+
+      if (ch.volumes && ch.volumes.length > 0) {
+        lines.push('    volumes:');
+        pushVolumes(ch.volumes);
+      }
+
+      lines.push(
         '    environment:',
         `      PORT:           "${internalPort}"`,
         `      CHANNEL_ID:     "${ch.id}"`,
@@ -1141,12 +1151,10 @@ if (require.main !== module) {
     if (process.argv[2] === 'generate') {
       process.stdout.write(output);
     } else {
-      const outPath    = path.join(path.dirname(path.resolve(cfgPath)), 'docker-compose.director.yml');
-      const relOut     = path.relative(process.cwd(), outPath);
-      const displayOut = relOut.startsWith('..') ? outPath : relOut;
+      const outPath = path.join(path.dirname(path.resolve(cfgPath)), 'docker-compose.director.yml');
       fs.writeFileSync(outPath, output, 'utf8');
-      process.stderr.write(`Created: ${displayOut}\n`);
-      process.stderr.write(`Run:     docker compose -f ${displayOut} up -d\n`);
+      process.stderr.write(`Created: docker-compose.director.yml\n`);
+      process.stderr.write(`Run:     docker compose -f docker-compose.director.yml up -d\n`);
     }
   } catch (e) {
     error(`mark failed: ${e.message}`);
