@@ -2,10 +2,6 @@
 # Reeltime Director — Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 #
-# Director reads each reeltime config file to derive the channel name, id,
-# icon, and Docker service name automatically — no need to repeat that
-# information here.
-#
 # After editing this file, regenerate docker-compose.director.yml with:
 #   node director/src/director.js mark director.config.yaml
 #
@@ -16,15 +12,34 @@ director:
   # port: 10000               # HTTP port (default 10000, overridden by PORT env var)
 
 configs:
-  # Path to each reeltime config.yaml (relative to this file, or absolute).
-  # Director auto-derives the channel name, id, and container URL from each file.
-  # Channels are assigned ports 10001, 10002, … in the order listed here.
+  # ── Reel channels ──────────────────────────────────────────────────────────
+  # Point to a reeltime config.yaml. Director auto-derives the channel name,
+  # id, and container URL from the file. Channels are assigned ports
+  # 10001, 10002, … in the order listed here.
   - ./channels/channel1/config.yaml
   - ./channels/channel2/config.yaml
 
-  # Optional: override the URL if the reeltime instance is not on the default
-  # Docker service URL (useful for remote hosts or non-standard ports):
+  # Optional: override the URL if the instance is not on the default Docker URL:
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
 
-  # Add more channels as needed — just drop another config file here.
+  # ── Boom channels (WeatherStar 4000) ──────────────────────────────────────
+  # Inline spec — no config file needed. `mark` generates the boom container
+  # with the environment variables you supply here.
+  #
+  # - name:        "WeatherStar 4000"
+  #   type:        boom
+  #   id:          weather           # optional; derived from name if omitted
+  #   description: "Live WS4KP weather display"
+  #   environment:
+  #     ZIP_CODE:   "90210"
+  #     WS4KP_HOST: "ws4kp"          # name of the ws4kp service in your compose
+  #     WS4KP_PORT: "8080"
+
+  # ── Scout channels (generic web-page capture) ──────────────────────────────
+  # - name:        "My Dashboard"
+  #   type:        scout
+  #   description: "Live dashboard capture"
+  #   environment:
+  #     CAPTURE_URL: "https://example.com/dashboard"
+  #     FRAME_RATE:  "2"

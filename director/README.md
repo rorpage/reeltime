@@ -1,6 +1,6 @@
-# Reeltime Director
+# 🎬 Director
 
-Reeltime Director aggregates multiple [Reeltime](../README.md) HLS stream instances into a single guide. Point it at your channel config files and it gives you a dark neon guide UI, an embedded player, XMLTV, M3U, and a health endpoint — no cloning required, just Docker.
+Reeltime Director aggregates [Reel](../reel/README.md), [Scout](../scout/README.md), and [Boom](../boom/README.md) channels into a single TV guide. Point it at your channel configs and it gives you a dark neon guide UI, per-channel detail pages, an embedded player, XMLTV, M3U, and a health endpoint — no cloning required, just Docker.
 
 ---
 
@@ -106,24 +106,56 @@ director:
   # port: 10000               # optional; overridden by PORT env var
 
 configs:
-  # Paths to Reeltime config.yaml files (relative to this file, or absolute).
+  # ── Reel channels — point to a config.yaml file ──────────────────────────
   - ./channels/channel1/config.yaml
   - ./channels/channel2/config.yaml
 
-  # Optional: override the URL if a channel runs somewhere other than the default Docker URL:
+  # Optional URL override (useful for remote hosts or non-standard ports):
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
+
+  # ── Scout / Boom channels — inline spec, no config file needed ───────────
+  # - name:        "WeatherStar 4000"
+  #   type:        boom
+  #   description: "Live retro weather display"
+  #   environment:
+  #     ZIP_CODE:   "90210"
+  #     WS4KP_HOST: "ws4kp"
+  #     WS4KP_PORT: "8080"
+
+  # - name:        "My Dashboard"
+  #   type:        scout
+  #   environment:
+  #     CAPTURE_URL: "https://example.com/dashboard"
 ```
+
+### Reel channel fields
 
 | Field               | Required              | Description                                                                     |
 |---------------------|-----------------------|---------------------------------------------------------------------------------|
-| `director.name`     | No                    | UI display name (default: `"Reeltime Director"`)                                |
-| `director.port`     | No                    | HTTP port (default: `10000`, overridden by `PORT` env var)                      |
-| `configs[]`         | **Yes**               | List of paths to Reeltime `config.yaml` files                                   |
-| `configs[].path`    | **Yes** (object form) | Path to a Reeltime config                                                       |
-| `configs[].url`     | No                    | URL override (default: `http://reeltime-<id>:8080` derived from `stream.name`) |
+| `configs[]`         | **Yes**               | Path to a Reeltime `config.yaml` (string or object with `path`)                 |
+| `configs[].path`    | **Yes** (object form) | Path to a Reeltime config                                                        |
+| `configs[].url`     | No                    | URL override (default: `http://reeltime-<id>:8080`)                             |
 
 > Director derives each channel's `id` from `stream.channel_id` (if set) or by converting `stream.name` to `snake_case`. The Docker service name is `reeltime-{id}`.
+
+### Scout / Boom inline fields
+
+| Field                | Required   | Description                                              |
+|----------------------|------------|----------------------------------------------------------|
+| `name`               | **Yes**    | Channel display name                                     |
+| `type`               | **Yes**    | `scout` or `boom`                                        |
+| `id`                 | No         | Stable channel id (derived from `name` if omitted)       |
+| `description`        | No         | Shown on the channel detail page                         |
+| `url`                | No         | URL override (default: `http://reeltime-<id>:8080`)      |
+| `environment`        | No         | Key/value env vars passed verbatim to the container      |
+
+### Director fields
+
+| Field           | Required | Description                                                    |
+|-----------------|----------|----------------------------------------------------------------|
+| `director.name` | No       | UI display name (default: `"Reeltime Director"`)               |
+| `director.port` | No       | HTTP port (default: `10000`, overridden by `PORT` env var)     |
 
 ---
 

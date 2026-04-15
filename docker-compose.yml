@@ -1,5 +1,130 @@
+## ── Usage ────────────────────────────────────────────────────────────────────
+## Each service is guarded by a profile so you can start only what you need.
+##
+##   docker compose --profile reel   up --build   # Reeltime only
+##   docker compose --profile scout  up --build   # Scout only
+##   docker compose --profile boom   up --build   # Boom only
+##
+##   docker compose --profile reel --profile scout --profile boom up --build
+##                                                # all three
+## ─────────────────────────────────────────────────────────────────────────────
+
 services:
+
+  # ── Scout — generic web-page HLS streamer ────────────────────────────────────
+  # Captures any URL via Puppeteer and serves it as a live HLS channel.
+  # Exposes the same endpoint set as Reeltime.
+  #
+  # Required: set CAPTURE_URL (or define it in .env)
+  #
+  # Player: http://localhost:8080/
+  # Tuner:  http://localhost:8080/channels.m3u
+  # Guide:  http://localhost:8080/xmltv
+  # Health: http://localhost:8080/health
+  scout:
+    profiles: [scout]
+    build:
+      context: scout
+      dockerfile: Dockerfile
+    container_name: scout
+    restart: unless-stopped
+
+    ports:
+      - "${SCOUT_HOST_PORT:-8080}:8080"
+
+    environment:
+      PORT:           "8080"
+      CAPTURE_URL:    "${CAPTURE_URL}"
+      CHANNEL_ID:     "${CHANNEL_ID:-scout}"
+      CHANNEL_NAME:   "${CHANNEL_NAME:-Scout}"
+      CHANNEL_NUMBER: "${CHANNEL_NUMBER:-1}"
+      CHANNEL_ICON:   "${CHANNEL_ICON:-}"
+      FRAME_RATE:     "${FRAME_RATE:-1}"
+      RESOLUTION:     "${RESOLUTION:-1280:720}"
+      VIDEO_BITRATE:  "${VIDEO_BITRATE:-1000k}"
+      AUDIO_BITRATE:  "${AUDIO_BITRATE:-128k}"
+      HLS_SEG:        "${HLS_SEG:-6}"
+      HLS_SIZE:       "${HLS_SIZE:-10}"
+      WAIT_UNTIL:     "${WAIT_UNTIL:-networkidle2}"
+      # CROP_X:       "${CROP_X}"
+      # CROP_Y:       "${CROP_Y}"
+      # CROP_WIDTH:   "${CROP_WIDTH}"
+      # CROP_HEIGHT:  "${CROP_HEIGHT}"
+      # DEBUG:        "1"
+
+    deploy:
+      resources:
+        limits:
+          cpus:   "${SCOUT_MAX_CPU:-1.0}"
+          memory: "${SCOUT_MAX_MEM:-1G}"
+
+    healthcheck:
+      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 120s
+      retries:      3
+
+  # ── Boom — WeatherStar 4000 HLS streamer ─────────────────────────────────────
+  # Captures the WS4KP weather display via Puppeteer and serves it as a live
+  # HLS channel compatible with Channels DVR, Jellyfin, Plex, and Emby.
+  #
+  # Prerequisites:
+  #   A running WS4KP instance (https://github.com/netbymatt/ws4kp) with
+  #   widescreen mode:  WSQS_settings_wide_checkbox=true
+  #
+  # M3U:    http://localhost:9798/channels.m3u
+  # XMLTV:  http://localhost:9798/xmltv
+  # Health: http://localhost:9798/health
+  boom:
+    profiles: [boom]
+    build:
+      context: boom
+      dockerfile: Dockerfile
+    container_name: boom
+    restart: unless-stopped
+
+    ports:
+      - "${BOOM_HOST_PORT:-9798}:9798"
+
+    # Optional volume mounts (uncomment volumes: and the entries you need):
+    # volumes:
+    #   - ./music:/music:ro   # background music MP3 files
+    #   - ./logo:/logo:ro     # logo PNG files
+
+    environment:
+      PORT:            "9798"
+      ZIP_CODE:        "${ZIP_CODE:-90210}"
+      WS4KP_HOST:      "${WS4KP_HOST:-localhost}"
+      WS4KP_PORT:      "${WS4KP_PORT:-8080}"
+      FRAME_RATE:      "${FRAME_RATE:-10}"
+      RESOLUTION:      "${RESOLUTION:-1280:720}"
+      VIDEO_BITRATE:   "${VIDEO_BITRATE:-1000k}"
+      AUDIO_BITRATE:   "${AUDIO_BITRATE:-128k}"
+      MUSIC_VOLUME:    "${MUSIC_VOLUME:-0.5}"
+      SHUFFLE_MUSIC:   "${SHUFFLE_MUSIC:-false}"
+      HLS_SEG:         "${HLS_SEG:-2}"
+      HLS_SIZE:        "${HLS_SIZE:-5}"
+      CHANNEL_ID:      "${CHANNEL_ID:-weatherstar4000}"
+      CHANNEL_NAME:    "${CHANNEL_NAME:-WeatherStar 4000}"
+      CHANNEL_NUMBER:  "${CHANNEL_NUMBER:-275}"
+
+    deploy:
+      resources:
+        limits:
+          cpus:   "${BOOM_MAX_CPU:-1.0}"
+          memory: "${BOOM_MAX_MEM:-1096M}"
+
+    healthcheck:
+      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:9798/health"]
+      interval:     30s
+      timeout:      10s
+      start_period: 60s
+      retries:      3
+
+  # ── Reeltime — playlist-driven HLS streamer ──────────────────────────────────
   reeltime:
+    profiles: [reel]
     build:
       context: .
       dockerfile: reel/Dockerfile
@@ -16,6 +141,8 @@ services:
       # (docker compose down && up) and not just restarts.
       # Put your config.yaml file(s) inside the ./config/ directory.
       - ./config:/config
+      # Optional: mount a local video directory and use /videos/<file>.mp4 as url in config.yaml
+      # - ./videos:/videos:ro
 
     environment:
       PORT:             "8080"

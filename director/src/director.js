@@ -31,6 +31,8 @@ const { toSnakeCase: _toSnakeCase, escHtml, escXML } = require('../../shared/uti
 const POLL_INTERVAL_MS   = 10_000;
 const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
+// Default internal container port per channel type
+const INTERNAL_PORT      = { reel: 8080, scout: 8080, boom: 8080 };
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const FAVICON_SVG        = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\uD83D\uDCFA</text></svg>";
@@ -87,7 +89,42 @@ function readChannelConfig(absPath, index, urlOverride) {
 
   const description = String(raw?.stream?.description || '');
 
-  return { id, name, icon, description, url, port, channelNum: index + 1, configPath: absPath };
+  return { id, name, icon, description, url, port, channelNum: index + 1, type: 'reel', environment: {}, configPath: absPath };
+}
+
+/**
+ * Build a channel descriptor from an inline director.config.yaml entry.
+ * Used for scout/boom channels that have no config file of their own.
+ *
+ * Inline entry shape:
+ *   - name:        "WeatherStar 4000"
+ *     type:        boom          # required: boom | scout
+ *     id:          weather       # optional; derived from name if omitted
+ *     icon:        "https://..."
+ *     description: "..."
+ *     url:         "http://..."  # optional URL override
+ *     environment:               # passed verbatim to the container
+ *       ZIP_CODE: "10001"
+ *
+ * @param {object} entry   Raw YAML entry object
+ * @param {number} index   Zero-based position (used for port assignment)
+ * @returns channel descriptor
+ */
+function parseInlineChannel(entry, index) {
+  const type        = String(entry.type || 'reel').toLowerCase();
+  const name        = String(entry.name || `Channel ${index + 1}`);
+  const id          = entry.id ? String(entry.id) : toSnakeCase(name);
+  const icon        = String(entry.icon        || '');
+  const description = String(entry.description || '');
+  const environment = (entry.environment && typeof entry.environment === 'object')
+    ? entry.environment : {};
+  const internalPort = INTERNAL_PORT[type] ?? 8080;
+  const resolvedUrl  = entry.url
+    ? String(entry.url).replace(/\/$/, '')
+    : `http://reeltime-${id}:${internalPort}`;
+  const port = 10001 + index;
+
+  return { id, name, icon, description, url: resolvedUrl, port, channelNum: index + 1, type, environment, configPath: null };
 }
 
 /**
@@ -116,9 +153,14 @@ function loadConfig(filePath) {
   const configDir    = path.dirname(path.resolve(filePath));
 
   const channels = raw.configs.map((entry, i) => {
-    const cfgPath    = typeof entry === 'string' ? entry : String(entry.path);
+    // Inline spec (scout / boom): object with a `type` field and no `path`
+    if (typeof entry === 'object' && entry !== null && entry.type && !entry.path) {
+      return parseInlineChannel(entry, i);
+    }
+    // File-based (reel): bare string path  OR  { path, url }
+    const cfgPath     = typeof entry === 'string' ? entry : String(entry.path);
     const urlOverride = typeof entry === 'object' && entry.url ? String(entry.url) : null;
-    const absPath    = path.isAbsolute(cfgPath) ? cfgPath : path.resolve(configDir, cfgPath);
+    const absPath     = path.isAbsolute(cfgPath) ? cfgPath : path.resolve(configDir, cfgPath);
     return readChannelConfig(absPath, i, urlOverride);
   });
 
@@ -164,7 +206,7 @@ function generateCompose(directorConfigPath, useImages = false) {
   ];
 
   cfg.channels.forEach(ch => {
-    lines.push(`# ${ch.name.padEnd(16)} (reeltime-${ch.id}): http://localhost:${ch.port}`);
+    lines.push(`# ${ch.name.padEnd(16)} (reeltime-${ch.id}): http://localhost:${ch.port}  [${ch.type}]`);
   });
 
   // ── director service ──────────────────────────────────────────────────────
@@ -194,7 +236,7 @@ function generateCompose(directorConfigPath, useImages = false) {
     `      - ${dirCfgRel}:/config/${dirCfgBase}:ro`,
   );
 
-  cfg.channels.forEach(ch => {
+  cfg.channels.filter(ch => ch.configPath).forEach(ch => {
     const chRel = rel(ch.configPath);
     // Preserve subdirectory structure so the path inside /config matches what
     // director.config.yaml references when resolved from /config/.
@@ -222,51 +264,74 @@ function generateCompose(directorConfigPath, useImages = false) {
     '      retries:      3',
   );
 
-  // ── reeltime services ─────────────────────────────────────────────────────
+  // ── channel services ──────────────────────────────────────────────────────
   cfg.channels.forEach(ch => {
-    // Mount the directory that contains the channel config so the reel can
-    // write its state file alongside the config (same pattern as standalone).
-    // State lands at <configDir>/state.<channel_id>_reeltime.json on the host.
-    const chFile   = path.resolve(ch.configPath);
-    const chDirRel = rel(path.dirname(chFile));
-    const chBase   = path.basename(chFile);
-    lines.push(
-      '',
-      `  reeltime-${ch.id}:`,
-    );
+    const internalPort = INTERNAL_PORT[ch.type] ?? 8080;
+    lines.push('', `  reeltime-${ch.id}:`);
 
-    if (useImages) {
-      lines.push('    image: ghcr.io/rorpage/reeltime:latest');
-    } else {
+    if (ch.type === 'reel') {
+      // ── reel ──────────────────────────────────────────────────────────────
+      const chFile   = path.resolve(ch.configPath);
+      const chDirRel = rel(path.dirname(chFile));
+      const chBase   = path.basename(chFile);
+
+      if (useImages) {
+        lines.push('    image: ghcr.io/rorpage/reeltime:latest');
+      } else {
+        lines.push('    build:', '      context: .', '      dockerfile: reel/Dockerfile');
+      }
+
       lines.push(
-        '    build:',
-        '      context: .',
-        '      dockerfile: reel/Dockerfile',
+        `    container_name: reeltime-${ch.id}`,
+        '    restart: unless-stopped',
+        '    ports:',
+        `      - "${ch.port}:${internalPort}"`,
+        '    volumes:',
+        `      - ${chDirRel}:/config`,
+        '    environment:',
+        `      PORT:             "${internalPort}"`,
+        `      CONFIG_PATH:      "/config/${chBase}"`,
+        '      # 604800 s = 7 days; prevents stale state from being applied after a long downtime',
+        '      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"',
+        '      HLS_SEG:          "${HLS_SEG:-6}"',
+        '      HLS_SIZE:         "${HLS_SIZE:-10}"',
+        '      RESOLUTION:       "${RESOLUTION:-1280:720}"',
+        '      VIDEO_BITRATE:    "${VIDEO_BITRATE:-2000k}"',
+        '      AUDIO_BITRATE:    "${AUDIO_BITRATE:-128k}"',
+        '      FRAMERATE:        "${FRAMERATE:-30}"',
+        '      FFMPEG_THREADS:   "${FFMPEG_THREADS:-0}"',
+        '      PASSES_PER_CYCLE: "${PASSES_PER_CYCLE:-3}"',
       );
+
+    } else {
+      // ── scout / boom ──────────────────────────────────────────────────────
+      if (useImages) {
+        lines.push(`    image: ghcr.io/rorpage/reeltime-${ch.type}:latest`);
+      } else {
+        lines.push('    build:', '      context: .', `      dockerfile: ${ch.type}/Dockerfile`);
+      }
+
+      lines.push(
+        `    container_name: reeltime-${ch.id}`,
+        '    restart: unless-stopped',
+        '    ports:',
+        `      - "${ch.port}:${internalPort}"`,
+        '    environment:',
+        `      PORT:           "${internalPort}"`,
+        `      CHANNEL_ID:     "${ch.id}"`,
+        `      CHANNEL_NAME:   "${ch.name}"`,
+        `      CHANNEL_NUMBER: "${ch.channelNum}"`,
+      );
+
+      // User-supplied env vars from the inline spec
+      Object.entries(ch.environment).forEach(([k, v]) => {
+        lines.push(`      ${k}: "${v}"`);
+      });
     }
 
     lines.push(
-      `    container_name: reeltime-${ch.id}`,
-      '    restart: unless-stopped',
-      '    ports:',
-      `      - "${ch.port}:8080"`,
-      '    volumes:',
-      `      - ${chDirRel}:/config`,
-      '    environment:',
-      '      PORT:             "8080"',
-      `      CONFIG_PATH:      "/config/${chBase}"`,
-      '      # 604800 s = 7 days; prevents stale state from being applied after a long downtime',
-      '      STATE_MAX_AGE_SEC: "${STATE_MAX_AGE_SEC:-604800}"',
-      '      HLS_SEG:          "${HLS_SEG:-6}"',
-      '      HLS_SIZE:         "${HLS_SIZE:-10}"',
-      '      RESOLUTION:       "${RESOLUTION:-1280:720}"',
-      '      VIDEO_BITRATE:    "${VIDEO_BITRATE:-2000k}"',
-      '      AUDIO_BITRATE:    "${AUDIO_BITRATE:-128k}"',
-      '      FRAMERATE:        "${FRAMERATE:-30}"',
-      '      FFMPEG_THREADS:   "${FFMPEG_THREADS:-0}"',
-      '      PASSES_PER_CYCLE: "${PASSES_PER_CYCLE:-3}"',
       '    healthcheck:',
-      '      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/health"]',
+      `      test:         ["CMD", "wget", "-qO", "/dev/null", "http://localhost:${internalPort}/health"]`,
       '      interval:     30s',
       '      timeout:      10s',
       '      start_period: 90s',

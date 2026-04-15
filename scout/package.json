@@ -1,0 +1,16 @@
+{
+  "name": "scout",
+  "version": "1.0.0",
+  "description": "Capture any web page as a live HLS stream with Puppeteer and ffmpeg",
+  "main": "src/streamer.js",
+  "scripts": {
+    "start": "node src/streamer.js"
+  },
+  "dependencies": {
+    "puppeteer-core": "^24.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "Unlicense"
+}
