@@ -207,7 +207,7 @@ function dropCommonPrefix(title, prefix) {
     out = out.slice(pref.length);
   }
 
-  return out.replace(/^[\s:|\-–—]+/, '').trim();
+  return out.replace(/^[\s:|\-–-]+/, '').trim();
 }
 
 function stripEpisodeMarkers(title) {
@@ -240,7 +240,7 @@ function inferEpisodeTitle(rawTitle, streamName, identifier) {
   const idWords = toTokenList(identifier).join(' ');
   if (idWords) out = dropCommonPrefix(out, idWords);
 
-  out = stripEpisodeMarkers(out).replace(/^[\s:|\-–—]+/, '').trim();
+  out = stripEpisodeMarkers(out).replace(/^[\s:|\-–-]+/, '').trim();
 
   return out || normalizeWhitespace(rawTitle);
 }

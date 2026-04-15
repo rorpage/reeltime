@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Scout — generic web-page HLS streamer
+ * Scout - generic web-page HLS streamer
  *
  * Opens any URL in a headless Chromium browser, captures screenshots at a
  * configurable frame rate, and pipes them into ffmpeg as a live HLS stream.
@@ -57,7 +57,7 @@ const CFG = {
   debug:             process.env.DEBUG === '1',
 };
 
-// Optional viewport crop — if any crop dimension is provided, all four must be set.
+// Optional viewport crop - if any crop dimension is provided, all four must be set.
 // Defaults to full viewport (no crop).
 const CROP_X      = process.env.CROP_X      != null ? +process.env.CROP_X      : null;
 const CROP_Y      = process.env.CROP_Y      != null ? +process.env.CROP_Y      : null;
@@ -388,7 +388,7 @@ function startFfmpeg() {
     isReady    = false;
   });
 
-  // Mark ready after (hlsSeg × 2) seconds — time for at least 2 segments to form
+  // Mark ready after (hlsSeg × 2) seconds - time for at least 2 segments to form
   if (readyTimer) clearTimeout(readyTimer);
   readyTimer = setTimeout(() => {
     readyTimer  = null;
@@ -444,12 +444,12 @@ async function start() {
 
   if (CFG.audioSource === 'mp3') {
     if (!buildAudioList({ musicDir: CFG.musicDir, shuffle: CFG.shuffleMusic, listPath: AUDIO_LIST, info, warn })) {
-      warn('No MP3 files found — falling back to silent audio');
+      warn('No MP3 files found - falling back to silent audio');
       CFG.audioSource = 'silent';
     }
   } else if (CFG.audioSource === 'http') {
     if (!CFG.audioUrl) {
-      warn('AUDIO_SOURCE=http but AUDIO_URL is not set — falling back to silent');
+      warn('AUDIO_SOURCE=http but AUDIO_URL is not set - falling back to silent');
       CFG.audioSource = 'silent';
     } else {
       info(`HTTP audio stream: ${CFG.audioUrl}`);
@@ -591,14 +591,14 @@ function startServer() {
       return;
     }
 
-    // ── GET /  (alias: /player) — embedded HLS.js web player ──────────────────
+    // ── GET /  (alias: /player) - embedded HLS.js web player ──────────────────
     if (url === '/' || url === '/player') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(buildPlayerHTML());
       return;
     }
 
-    // ── GET /stream.m3u8  and  GET /seg_*.ts — HLS files ──────────────────────
+    // ── GET /stream.m3u8  and  GET /seg_*.ts - HLS files ──────────────────────
     const file = path.basename(url);
     const ext  = path.extname(file);
 

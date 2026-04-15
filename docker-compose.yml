@@ -11,7 +11,7 @@
 
 services:
 
-  # ── Scout — generic web-page HLS streamer ────────────────────────────────────
+  # ── Scout - generic web-page HLS streamer ────────────────────────────────────
   # Captures any URL via Puppeteer and serves it as a live HLS channel.
   # Exposes the same endpoint set as Reeltime.
   #
@@ -65,7 +65,7 @@ services:
       start_period: 120s
       retries:      3
 
-  # ── Boom — WeatherStar 4000 HLS streamer ─────────────────────────────────────
+  # ── Boom - WeatherStar 4000 HLS streamer ─────────────────────────────────────
   # Captures the WS4KP weather display via Puppeteer and serves it as a live
   # HLS channel compatible with Channels DVR, Jellyfin, Plex, and Emby.
   #
@@ -122,7 +122,7 @@ services:
       start_period: 60s
       retries:      3
 
-  # ── Reeltime — playlist-driven HLS streamer ──────────────────────────────────
+  # ── Reeltime - playlist-driven HLS streamer ──────────────────────────────────
   reeltime:
     profiles: [reel]
     build:

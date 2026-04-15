@@ -1,8 +1,8 @@
-# Reeltime — Copilot Instructions
+# Reeltime - Copilot Instructions
 
 ## Writing style
 
-- **US English** throughout — code, comments, docs, YAML, scripts. Use "behavior" not "behaviour", "color" not "colour", "initialize" not "initialise", etc.
+- **US English** throughout - code, comments, docs, YAML, scripts. Use "behavior" not "behaviour", "color" not "colour", "initialize" not "initialise", etc.
 - **No em dashes** — use ` - ` (space, hyphen, space) as a separator. Never use `—` or `--` as a prose separator.
 - **No emojis** unless explicitly requested.
 
@@ -16,8 +16,8 @@ in a continuous loop as an HLS (m3u8) stream.
 - Infinite mode uses PASSES_PER_CYCLE prefill batches with automatic rollover/retry
 - A wall-clock schedule[] array is the source of truth for /now and /xmltv
 - getScheduleWindow() extrapolates future entries beyond the FIFO write head
-- NO multi-process normaliser + encoder split — one ffmpeg does everything
-- NO PassThrough stream bridge — the FIFO IS the bridge
+- NO multi-process normaliser + encoder split - one ffmpeg does everything
+- NO PassThrough stream bridge - the FIFO IS the bridge
 
 ## Code style
 - Node.js built-ins only (no Express, no external HTTP frameworks)

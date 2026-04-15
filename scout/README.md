@@ -3,7 +3,7 @@
 A Dockerized companion service for [Reeltime](https://github.com/rorpage/reeltime)
 that captures **any web page** as a live HLS stream using Puppeteer and ffmpeg.
 Point it at a dashboard, status display, weather app, or any browser-renderable
-URL — Scout streams it continuously over HLS, compatible with Channels DVR,
+URL - Scout streams it continuously over HLS, compatible with Channels DVR,
 Jellyfin, Plex, Emby, and any M3U/XMLTV-aware client.
 
 ## Running
@@ -50,7 +50,7 @@ docker run -p 8080:8080 \
 
 ## Using with Director
 
-Scout integrates with [Reeltime Director](../director/README.md) as an inline channel — no config file needed. Add it to `director.config.yaml`:
+Scout integrates with [Reeltime Director](../director/README.md) as an inline channel - no config file needed. Add it to `director.config.yaml`:
 
 ```yaml
 configs:
@@ -70,7 +70,7 @@ Then re-run `mark` to regenerate your compose file.
 
 | Variable | Default | Description |
 |---|---|---|
-| `CAPTURE_URL` | *(required)* | URL to capture — container exits if unset |
+| `CAPTURE_URL` | *(required)* | URL to capture - container exits if unset |
 | `PORT` | `8080` | HTTP port |
 | `FRAME_RATE` | `1` | Screenshot capture rate (fps) |
 | `RESOLUTION` | `1280:720` | Output video resolution |
@@ -89,10 +89,10 @@ Then re-run `mark` to regenerate your compose file.
 | `CHANNEL_NUMBER` | `1` | Channel number in M3U |
 | `CHANNEL_ICON` | *(none)* | URL to channel icon |
 | `WAIT_UNTIL` | `networkidle2` | Puppeteer navigation wait condition |
-| `CROP_X` | *(none)* | Screenshot crop — left offset |
-| `CROP_Y` | *(none)* | Screenshot crop — top offset |
-| `CROP_WIDTH` | *(none)* | Screenshot crop — width |
-| `CROP_HEIGHT` | *(none)* | Screenshot crop — height |
+| `CROP_X` | *(none)* | Screenshot crop - left offset |
+| `CROP_Y` | *(none)* | Screenshot crop - top offset |
+| `CROP_WIDTH` | *(none)* | Screenshot crop - width |
+| `CROP_HEIGHT` | *(none)* | Screenshot crop - height |
 | `DEBUG` | `0` | Set to `1` for verbose ffmpeg and capture logs |
 | `PUPPETEER_EXECUTABLE_PATH` | `/usr/bin/chromium` | Chromium binary path |
 
@@ -109,8 +109,8 @@ variables to focus on a specific region (e.g., trim browser chrome):
 
 By default Scout outputs a silent audio track. To add audio, set `AUDIO_SOURCE`:
 
-- **`mp3`** — loop MP3 files; mount a directory to `/music`: `-v ./music:/music:ro`
-- **`http`** — pull from an HTTP stream; set `AUDIO_URL` to the stream URL
+- **`mp3`** - loop MP3 files; mount a directory to `/music`: `-v ./music:/music:ro`
+- **`http`** - pull from an HTTP stream; set `AUDIO_URL` to the stream URL
 
 ## Frame rate
 
@@ -139,7 +139,7 @@ Director's guide window.
 {
   "current": {
     "title":       "My Dashboard",
-    "description": "My Dashboard — Live View",
+    "description": "My Dashboard - Live View",
     "duration":    3600,
     "position":    742.3,
     "remaining":   2857.7,
