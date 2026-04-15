@@ -442,6 +442,38 @@ test('generateCompose - no extra volume line when volumes array is empty', () =>
   assert.equal(extraMounts.length, 0);
 });
 
+test('generateCompose - scout/boom channel with volumes emits volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Weather"\n    type: boom\n    volumes:\n      - /data/music:/music:ro\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('- /data/music:/music:ro'));
+});
+
+test('generateCompose - scout/boom channel with no volumes has no volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Weather"\n    type: boom\n    environment:\n      ZIP_CODE: "12345"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  // Find the boom service block and verify it has no volumes: key
+  const boomStart = out.indexOf('reeltime-weather:');
+  const boomBlock = out.slice(boomStart);
+  const nextService = boomBlock.indexOf('\n  reeltime-', 1);
+  const boomSection = nextService === -1 ? boomBlock : boomBlock.slice(0, nextService);
+  assert.ok(!boomSection.includes('volumes:'));
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 8. buildAggregatedM3U
 // ─────────────────────────────────────────────────────────────────────────────
