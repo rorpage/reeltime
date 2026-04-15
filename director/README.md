@@ -156,6 +156,7 @@ configs:
 | `description`        | No         | Shown on the channel detail page                         |
 | `url`                | No         | URL override (default: `http://reeltime-<id>:8080`)      |
 | `environment`        | No         | Key/value env vars passed verbatim to the container      |
+| `volumes`            | No         | Extra bind mounts (e.g. `/data/music:/music:ro`). Required when `MUSIC_DIR` or other env vars point to host paths. Absolute paths pass through unchanged; relative paths resolve from `director.config.yaml`. |
 
 ### Director fields
 
