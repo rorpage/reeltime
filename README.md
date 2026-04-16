@@ -7,7 +7,7 @@ A self-hosted continuous HLS video streaming suite.
 | **[🎥 Reel](reel/README.md)** | Playlist-driven HLS streamer - loops a YAML video playlist as a live m3u8 feed |
 | **[🧢 Scout](scout/README.md)** | Web-page capture streamer - turns any URL into a live HLS channel |
 | **[⚡ Boom](boom/README.md)** | WeatherStar 4000 streamer - captures WS4KP as a live retro weather channel |
-| **[🎵 Mixer](mixer/README.md)** | Music channel streamer - plays a directory of MP3 files as a live HLS channel |
+| **[🎚️ Mixer](mixer/README.md)** | Music channel streamer - plays a directory of MP3 files as a live HLS channel |
 | **[🎬 Director](director/README.md)** | Multi-channel guide - aggregates Reel, Scout, Boom, and Mixer into one TV guide UI, XMLTV, and M3U |
 
 **Just want to get running?** See the [Director quick start](director/README.md) - all you need is Docker.
