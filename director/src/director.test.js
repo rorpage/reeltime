@@ -475,8 +475,109 @@ test('generateCompose - scout/boom channel with no volumes has no volumes block'
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. buildAggregatedM3U
+// 7b. mixer channel in generateCompose / loadConfig
 // ─────────────────────────────────────────────────────────────────────────────
+
+test('loadConfig - parses mixer inline channel correctly', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n      SHUFFLE_MUSIC: "true"\n`
+  );
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels.length, 2);
+  const mixer = cfg.channels[1];
+  assert.equal(mixer.name, 'My Music');
+  assert.equal(mixer.type, 'mixer');
+  assert.equal(mixer.id,   'my_music');
+  assert.equal(mixer.environment.MUSIC_DIR,    '/music');
+  assert.equal(mixer.environment.SHUFFLE_MUSIC, 'true');
+});
+
+test('generateCompose - mixer channel emits correct image reference', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir, true);   // useImages = true
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('reeltime-my_music:'));
+  assert.ok(out.includes('ghcr.io/rorpage/reeltime-mixer:latest'));
+});
+
+test('generateCompose - mixer channel emits correct Dockerfile reference when building', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir, false);  // useImages = false
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('dockerfile: mixer/Dockerfile'));
+});
+
+test('generateCompose - mixer channel with volumes emits volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    volumes:\n      - /data/music:/music:ro\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('- /data/music:/music:ro'));
+});
+
+test('generateCompose - mixer channel with no volumes has no volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  const serviceStart = out.indexOf('reeltime-my_music:');
+  const serviceBlock = out.slice(serviceStart);
+  const nextService  = serviceBlock.indexOf('\n  reeltime-', 1);
+  const section      = nextService === -1 ? serviceBlock : serviceBlock.slice(0, nextService);
+  assert.ok(!section.includes('volumes:'));
+});
+
+test('generateCompose - mixer channel emits CHANNEL_ID and CHANNEL_NAME env vars', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  const serviceStart = out.indexOf('reeltime-my_music:');
+  const section      = out.slice(serviceStart);
+  assert.ok(section.includes('CHANNEL_ID:'));
+  assert.ok(section.includes('CHANNEL_NAME:'));
+});
+
+
 
 const sampleChannels = [
   { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },

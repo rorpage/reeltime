@@ -1,0 +1,14 @@
+{
+  "name": "mixer",
+  "version": "1.0.0",
+  "description": "Music channel HLS streamer for Reeltime",
+  "main": "src/streamer.js",
+  "scripts": {
+    "start": "node src/streamer.js",
+    "test":  "node --test src/streamer.test.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "Unlicense"
+}

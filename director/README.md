@@ -120,7 +120,7 @@ configs:
   #     - /data/shows/my-show:/videos:ro   # absolute host path
   #     - ./local-videos:/videos:ro        # relative to director.config.yaml
 
-  # ── Scout / Boom channels - inline spec, no config file needed ───────────
+  # ── Scout / Boom / Mixer channels - inline spec, no config file needed ──────
   # - name:        "WeatherStar 4000"
   #   type:        boom
   #   description: "Live retro weather display"
@@ -133,6 +133,15 @@ configs:
   #   type:        scout
   #   environment:
   #     CAPTURE_URL: "https://example.com/dashboard"
+
+  # - name:        "My Music"
+  #   type:        mixer
+  #   description: "Background music channel"
+  #   volumes:
+  #     - /path/to/your/music:/music:ro
+  #   environment:
+  #     MUSIC_DIR:    "/music"
+  #     SHUFFLE_MUSIC: "true"
 ```
 
 ### Reel channel fields
@@ -146,12 +155,12 @@ configs:
 
 > Director derives each channel's `id` from `stream.channel_id` (if set) or by converting `stream.name` to `snake_case`. The Docker service name is `reeltime-{id}`.
 
-### Scout / Boom inline fields
+### Scout / Boom / Mixer inline fields
 
 | Field                | Required   | Description                                              |
 |----------------------|------------|----------------------------------------------------------|
 | `name`               | **Yes**    | Channel display name                                     |
-| `type`               | **Yes**    | `scout` or `boom`                                        |
+| `type`               | **Yes**    | `scout`, `boom`, or `mixer`                              |
 | `id`                 | No         | Stable channel id (derived from `name` if omitted)       |
 | `description`        | No         | Shown on the channel detail page                         |
 | `url`                | No         | URL override (default: `http://reeltime-<id>:8080`)      |

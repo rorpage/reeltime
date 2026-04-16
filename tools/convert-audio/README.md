@@ -6,7 +6,11 @@ Converts non-MP3 audio files to reeltime-compatible MP3s.
 
 ## Why is this needed?
 
-Boom and any Reel channel that uses background music expects `.mp3` files in its music directory. If your music library contains files in other formats - M4A (iTunes downloads, Apple Music exports), AAC, FLAC, OGG, Opus, WMA, or WAV - this script converts them to MP3 in one pass so you can drop the output folder straight into your config.
+Boom and any Reel channel that uses background music expects `.mp3` files in its music directory.
+[Mixer](../../mixer/README.md) also requires MP3s for its music directory. If your music library
+contains files in other formats - M4A (iTunes downloads, Apple Music exports), AAC, FLAC, OGG,
+Opus, WMA, or WAV - this script converts them to MP3 in one pass so you can drop the output folder
+straight into your config.
 
 ---
 
@@ -44,7 +48,7 @@ For **lossless sources** (FLAC, WAV, AIFF), there is no meaningful "original bit
 | Argument | Why |
 |---|---|
 | `-vn` | Skip any embedded video/artwork streams so only the audio track is processed |
-| `-c:a libmp3lame` | Encode to MP3 using the LAME encoder |
+| `-c:a libmp3lame` | Encode to MP3 using the LAME encoder (built into standard ffmpeg builds) |
 | `-b:a <kbps>k` | Target bitrate, matched to the source (or 320k for lossless) |
 | `-map_metadata 0` | Copy all tags (artist, album, title, etc.) from the source to the MP3 |
 | `-id3v2_version 3` | Write ID3v2.3 tags, which have the broadest player compatibility |
@@ -84,7 +88,7 @@ Rumours/
   02-The-Chain.mp3     <- created by this script  (256k)
 ```
 
-Once converted, point your Boom or Reel music directory at the folder containing the new MP3s.
+Once converted, point your Boom, Mixer, or Reel music directory at the folder containing the new MP3s.
 
 ---
 
@@ -98,3 +102,7 @@ Already-converted files are skipped automatically, so you can re-run the script 
 
 - `ffmpeg` and `ffprobe` must be installed and on your `PATH`
 - Bash 4.0+ (standard on Linux; on macOS install via `brew install bash`)
+
+`libmp3lame` is compiled into every standard `ffmpeg` build (`apt install ffmpeg`,
+`brew install ffmpeg`, and the static builds from ffmpeg.org all include it).
+No separate installation is needed.
