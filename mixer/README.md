@@ -1,4 +1,4 @@
-# Mixer
+# 🎵 Mixer
 
 A Dockerized music channel streamer for [Reeltime](https://github.com/rorpage/reeltime).
 Plays a directory of MP3 files as a continuous live HLS channel - compatible with Channels DVR,
