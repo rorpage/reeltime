@@ -44,6 +44,7 @@ class ChannelOverlay:
         self._q: queue.Queue = queue.Queue()
         self._root: Optional[tk.Tk] = None
         self._canvas: Optional[tk.Canvas] = None
+        self._blackout_win: Optional[tk.Toplevel] = None
         self._ids: dict[str, int] = {}
         self._hide_job: Optional[str] = None
         self._alpha: float = 0.0
@@ -65,6 +66,12 @@ class ChannelOverlay:
     def dismiss(self) -> None:
         self._send("hide")
 
+    def blackout(self) -> None:
+        self._send("blackout")
+
+    def unblackout(self) -> None:
+        self._send("unblackout")
+
     def _send(self, kind: str, **kw) -> None:
         if self.config.enabled:
             self._q.put((kind, kw))
@@ -75,6 +82,7 @@ class ChannelOverlay:
             self._root = tk.Tk()
             self._build_window()
             self._build_canvas()
+            self._build_blackout()
             self.available = True
             logger.info("Overlay ready on %s", self.config.position)
             self._pump()
@@ -99,6 +107,18 @@ class ChannelOverlay:
         r.wm_attributes("-alpha", 0.0)
         r.configure(bg=_BG)
         r.geometry(f"{sw}x{_BANNER_H}+0+{y}")
+
+    def _build_blackout(self) -> None:
+        r  = self._root
+        sw = r.winfo_screenwidth()
+        sh = r.winfo_screenheight()
+        w = tk.Toplevel(r)
+        w.overrideredirect(True)
+        w.wm_attributes("-topmost", True)
+        w.configure(bg="black")
+        w.geometry(f"{sw}x{sh}+0+0")
+        w.withdraw()
+        self._blackout_win = w
 
     def _build_canvas(self) -> None:
         r  = self._root
@@ -148,6 +168,13 @@ class ChannelOverlay:
                 elif kind == "hide":
                     self._cancel_hide()
                     self._start_fade("out")
+                elif kind == "blackout":
+                    if self._blackout_win:
+                        self._blackout_win.deiconify()
+                        self._blackout_win.lift()
+                elif kind == "unblackout":
+                    if self._blackout_win:
+                        self._blackout_win.withdraw()
         except queue.Empty:
             pass
 
