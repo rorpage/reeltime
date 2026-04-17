@@ -19,7 +19,9 @@ const {
   readChannelConfig,
   loadConfig,
   generateCompose,
+  channelStreamUrl,
   buildAggregatedM3U,
+  buildChannelList,
   buildPlayerHTML,
   buildAggregatedNow,
   buildHealthResponse,
@@ -475,7 +477,21 @@ test('generateCompose - scout/boom channel with no volumes has no volumes block'
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 8. buildAggregatedM3U
+// 8. channelStreamUrl
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('channelStreamUrl - uses hostname and port when hostname provided', () => {
+  const ch = { port: 10001, url: 'http://internal:8080' };
+  assert.equal(channelStreamUrl(ch, '192.168.1.5'), 'http://192.168.1.5:10001/stream.m3u8');
+});
+
+test('channelStreamUrl - falls back to ch.url when hostname omitted', () => {
+  const ch = { port: 10001, url: 'http://internal:8080' };
+  assert.equal(channelStreamUrl(ch, undefined), 'http://internal:8080/stream.m3u8');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. buildAggregatedM3U
 // ─────────────────────────────────────────────────────────────────────────────
 
 const sampleChannels = [
@@ -725,7 +741,39 @@ test('buildAggregatedNow - upcoming absent when not returned by reel', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 14. TV guide HTML structure
+// 14. buildChannelList
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('buildChannelList - returns one entry per channel', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal(result.length, sampleChannels.length);
+});
+
+test('buildChannelList - maps channelNum to number', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal(result[0].number, 1);
+  assert.equal(result[1].number, 2);
+});
+
+test('buildChannelList - stream_url uses hostname and port', () => {
+  const result = buildChannelList(sampleChannels, '192.168.1.5');
+  assert.equal(result[0].stream_url, 'http://192.168.1.5:10001/stream.m3u8');
+  assert.equal(result[1].stream_url, 'http://192.168.1.5:10002/stream.m3u8');
+});
+
+test('buildChannelList - logo_url omitted when icon is empty', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal('logo_url' in result[0], false);
+});
+
+test('buildChannelList - logo_url present when icon is set', () => {
+  const channels = [{ ...sampleChannels[0], icon: 'http://example.com/logo.png' }];
+  const result = buildChannelList(channels, 'localhost');
+  assert.equal(result[0].logo_url, 'http://example.com/logo.png');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. TV guide HTML structure
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('index.html - contains prog-rail for TV grid layout', () => {

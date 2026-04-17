@@ -7,6 +7,7 @@
  * ─────────────────────────────────────────────────
  *  GET /                 Dark neon guide UI (all channels)
  *  GET /watch/:id        Embedded HLS.js player for one channel
+ *  GET /channels         Channel list JSON (for usher / API consumers)
  *  GET /now              Aggregated now-playing JSON
  *  GET /xmltv            Combined XMLTV from all channels
  *  GET /xmltv.xml        Alias for /xmltv
@@ -380,16 +381,41 @@ function generateCompose(directorConfigPath, useImages = false) {
  * @param {string} host  - request Host header value (e.g. "192.168.1.5:9999")
  * @returns {string}
  */
+function channelStreamUrl(ch, hostname) {
+  return hostname
+    ? `http://${hostname}:${ch.port}/stream.m3u8`
+    : `${ch.url}/stream.m3u8`;
+}
+
 function buildAggregatedM3U(channels, host) {
   const hostname = host.split(':')[0];
   const lines = [`#EXTM3U x-tvg-url="http://${host}/xmltv"`];
   for (const ch of channels) {
     lines.push(
       `#EXTINF:-1 tvg-id="${escHtml(ch.id)}" tvg-name="${escHtml(ch.name)}",${escHtml(ch.name)}`,
-      `http://${hostname}:${ch.port}/stream.m3u8`,
+      channelStreamUrl(ch, hostname),
     );
   }
   return lines.join('\n') + '\n';
+}
+
+/**
+ * Build the /channels JSON response - a flat list of channels with stream URLs.
+ * @param {Array}  channels
+ * @param {string} hostname  Director hostname visible to the client (for stream URLs)
+ * @returns {Array}
+ */
+function buildChannelList(channels, hostname) {
+  return channels.map(ch => {
+    const entry = {
+      id:         ch.id,
+      number:     ch.channelNum,
+      name:       ch.name,
+      stream_url: channelStreamUrl(ch, hostname),
+    };
+    if (ch.icon) entry.logo_url = ch.icon;
+    return entry;
+  });
 }
 
 /**
@@ -412,9 +438,7 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
         name:       ch.name,
         channelNum: ch.channelNum,
         port:       ch.port,
-        stream:     hostname
-          ? `http://${hostname}:${ch.port}/stream.m3u8`
-          : `${ch.url}/stream.m3u8`,
+        stream:     channelStreamUrl(ch, hostname),
         now:        rawNow,
         online:     cached.online ?? false,
       };
@@ -989,6 +1013,14 @@ function createRequestHandler(directorName, channels, channelCache) {
       return res.end(html);
     }
 
+    // GET /channels
+    if (req.method === 'GET' && pathname === '/channels') {
+      const hostname = host.split(':')[0];
+      const body = JSON.stringify(buildChannelList(channels, hostname));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(body);
+    }
+
     // GET /now
     if (req.method === 'GET' && pathname === '/now') {
       const hostname = host.split(':')[0];
@@ -1130,7 +1162,9 @@ if (require.main !== module) {
     readChannelConfig,
     loadConfig,
     generateCompose,
+    channelStreamUrl,
     buildAggregatedM3U,
+    buildChannelList,
     buildPlayerHTML,
     buildAggregatedNow,
     buildHealthResponse,
