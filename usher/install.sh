@@ -45,7 +45,7 @@ fi
 
 python3 -m venv venv
 ./venv/bin/pip install -q --upgrade pip
-./venv/bin/pip install -q -e .
+./venv/bin/pip install -q -e ".[linux]"
 
 sed \
     -e "s|__USER__|$USHER_USER|g" \
