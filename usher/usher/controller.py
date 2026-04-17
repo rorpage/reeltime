@@ -199,6 +199,9 @@ class UsherController:
                         0, "No channel selected", status="Press CH▲ to start"
                     )
 
+            case "quit":
+                await self.shutdown()
+
     async def _on_volume(self, direction: str) -> None:
         match direction:
             case "up":
