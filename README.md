@@ -9,10 +9,13 @@ A self-hosted continuous HLS video streaming suite.
 | **[⚡ Boom](boom/README.md)** | WeatherStar 4000 streamer - captures WS4KP as a live retro weather channel |
 | **[🎚️ Mixer](mixer/README.md)** | Music channel streamer - plays a directory of MP3 files as a live HLS channel |
 | **[🎬 Director](director/README.md)** | Multi-channel guide - aggregates Reel, Scout, Boom, and Mixer into one TV guide UI, XMLTV, and M3U |
+| **[🎟️ Usher](usher/README.md)** | Raspberry Pi client - tunes mpv to a Director channel via IR remote or keyboard; runs as a systemd service |
 
 **Just want to get running?** See the [Director quick start](director/README.md) - all you need is Docker.
 
 **Single channel only?** See the [Reel](reel/README.md), [Scout](scout/README.md), [Boom](boom/README.md), or [Mixer](mixer/README.md) quick starts.
+
+**Watching on a Raspberry Pi?** See the [Usher quick start](usher/README.md).
 
 ---
 

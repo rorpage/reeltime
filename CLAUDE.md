@@ -18,7 +18,9 @@ Reeltime is a self-hosted continuous HLS video streaming suite:
 - **Reel** (`reel/`) - single-channel HLS streamer; loops a YAML playlist as a live m3u8 feed
 - **Scout** (`scout/`) - generic web-page HLS streamer; captures any URL via Puppeteer + ffmpeg as a live channel
 - **Boom** (`boom/`) - WeatherStar 4000 HLS streamer; captures the WS4KP weather display as a retro weather channel
-- **Director** (`director/`) - multi-channel guide; aggregates Reel, Scout, and Boom instances into one UI, XMLTV, and M3U
+- **Mixer** (`mixer/`) - music channel streamer; plays a directory of MP3 files as a live HLS channel
+- **Director** (`director/`) - multi-channel guide; aggregates Reel, Scout, Boom, and Mixer instances into one UI, XMLTV, and M3U
+- **Usher** (`usher/`) - Raspberry Pi client; reads IR remote or keyboard input and tunes mpv to a Director channel via the `/channels` API; runs as a systemd service with a Tkinter channel banner overlay
 
 ## Shared utilities
 

@@ -18,18 +18,21 @@ jobs:
     strategy:
       matrix:
         include:
-          - service: reel
-            dockerfile: reel/Dockerfile
-            image_suffix: ""
-          - service: director
-            dockerfile: director/Dockerfile
-            image_suffix: -director
-          - service: scout
-            dockerfile: scout/Dockerfile
-            image_suffix: -scout
           - service: boom
             dockerfile: boom/Dockerfile
             image_suffix: -boom
+          - service: director
+            dockerfile: director/Dockerfile
+            image_suffix: -director
+          - service: mixer
+            dockerfile: mixer/Dockerfile
+            image_suffix: -mixer
+          - service: reel
+            dockerfile: reel/Dockerfile
+            image_suffix: ""
+          - service: scout
+            dockerfile: scout/Dockerfile
+            image_suffix: -scout
 
     steps:
       - name: Checkout code
