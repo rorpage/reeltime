@@ -13,6 +13,8 @@ _MPV_DEFAULTS = [
     "--no-terminal",
     "--really-quiet",
     "--demuxer-lavf-format=hls",
+    "--no-input-default-bindings",
+    "--no-input-vo-keyboard",
 ]
 
 _VLC_DEFAULTS = ["--no-osd", "--intf", "dummy"]
