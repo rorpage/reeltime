@@ -1,6 +1,6 @@
 # 🎬 Director
 
-Reeltime Director aggregates [Reel](../reel/README.md), [Scout](../scout/README.md), and [Boom](../boom/README.md) channels into a single TV guide. Point it at your channel configs and it gives you a dark neon guide UI, per-channel detail pages, an embedded player, XMLTV, M3U, and a health endpoint - no cloning required, just Docker.
+Reeltime Director aggregates [Reel](../reel/README.md), [Scout](../scout/README.md), [Boom](../boom/README.md), and [Mixer](../mixer/README.md) channels into a single TV guide. Point it at your channel configs and it gives you a dark neon guide UI, per-channel detail pages, an embedded player, XMLTV, M3U, and a health endpoint - no cloning required, just Docker. Watching on a Raspberry Pi? Pair it with [Usher](../usher/README.md) for IR remote control.
 
 ---
 
