@@ -45,6 +45,7 @@ class ChannelOverlay:
         self._root: Optional[tk.Tk] = None
         self._canvas: Optional[tk.Canvas] = None
         self._blackout_win: Optional[tk.Toplevel] = None
+        self._blacked_out: bool = False
         self._ids: dict[str, int] = {}
         self._hide_job: Optional[str] = None
         self._alpha: float = 0.0
@@ -169,14 +170,18 @@ class ChannelOverlay:
                     self._cancel_hide()
                     self._start_fade("out")
                 elif kind == "blackout":
+                    self._blacked_out = True
                     if self._blackout_win:
                         self._blackout_win.deiconify()
-                        self._blackout_win.lift()
                 elif kind == "unblackout":
+                    self._blacked_out = False
                     if self._blackout_win:
                         self._blackout_win.withdraw()
         except queue.Empty:
             pass
+
+        if self._blacked_out and self._blackout_win:
+            self._blackout_win.lift()
 
         if self._root:
             self._root.after(40, self._pump)

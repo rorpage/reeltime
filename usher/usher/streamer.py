@@ -15,6 +15,7 @@ _MPV_DEFAULTS = [
     "--demuxer-lavf-format=hls",
     "--no-input-default-bindings",
     "--no-input-vo-keyboard",
+    "--fullscreen",
 ]
 
 _VLC_DEFAULTS = ["--no-osd", "--intf", "dummy"]
