@@ -6,7 +6,7 @@ from typing import Optional
 
 from .config import Config
 from .director import Channel, DirectorClient
-from .ir import find_ir_device, ir_event_stream
+from .ir import find_ir_device, find_keyboard_device, ir_event_stream, keyboard_evdev_stream
 from .keyboard import KEYBOARD_AVAILABLE, keyboard_event_stream
 from .overlay import ChannelOverlay
 from .streamer import Streamer
@@ -49,9 +49,10 @@ class UsherController:
         self._running = True
 
         device = self.config.ir.device or find_ir_device()
+        kb_device = find_keyboard_device()
         kb_enabled = self.config.ir.keyboard_enabled and KEYBOARD_AVAILABLE
 
-        if not device and not kb_enabled:
+        if not device and not kb_device and not kb_enabled:
             logger.error(
                 "No input source available. Either:\n"
                 "  • Wire an IR receiver to GPIO17 and add "
@@ -63,21 +64,22 @@ class UsherController:
         channels = await self.director.get_channels()
         if channels:
             logger.info(
-                "Ready -%d channels.  First: CH%d %s",
+                "Ready - %d channels.  Tuning to CH%d %s",
                 len(channels), channels[0].number, channels[0].name,
             )
+            await self._play(channels[0])
         else:
-            logger.warning("director returned no channels -check that service.")
+            logger.warning("director returned no channels - check that service.")
 
-        logger.info("usher is ready. Waiting for input...")
+        logger.info("usher is ready.")
 
-        async for action_type, value in self._merged_event_stream(device):
+        async for action_type, value in self._merged_event_stream(device, kb_device):
             if not self._running:
                 break
             await self._dispatch(action_type, value)
 
-    async def _merged_event_stream(self, device: Optional[str]):
-        """Yields events from IR and/or keyboard, whichever are available."""
+    async def _merged_event_stream(self, device: Optional[str], kb_device: Optional[str]):
+        """Yields events from IR, evdev keyboard, and/or terminal keyboard."""
         queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
         tasks = []
 
@@ -86,6 +88,12 @@ class UsherController:
                 async for event in ir_event_stream(device):
                     await queue.put(event)
             tasks.append(asyncio.create_task(_pump_ir()))
+
+        if kb_device:
+            async def _pump_kb_evdev() -> None:
+                async for event in keyboard_evdev_stream(kb_device):
+                    await queue.put(event)
+            tasks.append(asyncio.create_task(_pump_kb_evdev()))
 
         if self.config.ir.keyboard_enabled and KEYBOARD_AVAILABLE:
             async def _pump_kb() -> None:
@@ -198,6 +206,9 @@ class UsherController:
                         0, "No channel selected", status="Press CH▲ to start"
                     )
 
+            case "quit":
+                await self.shutdown()
+
     async def _on_volume(self, direction: str) -> None:
         match direction:
             case "up":
@@ -220,8 +231,10 @@ class UsherController:
     async def _play(self, channel: Channel) -> None:
         self._current = channel
         logger.info("📺  CH%d  %s", channel.number, channel.name)
+        self.overlay.blackout()
         self.overlay.show_channel(channel.number, channel.name, status="Loading…")
         await self.streamer.play(channel.stream_url, channel.name)
+        self.overlay.unblackout()
         if self.overlay.available:
             self.overlay.show_channel(channel.number, channel.name)
         else:

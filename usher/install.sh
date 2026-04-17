@@ -35,9 +35,17 @@ sudo apt-get install -y --no-install-recommends \
     ir-keytable \
     fonts-dejavu-core
 
+if groups "$USHER_USER" | grep -qw input; then
+    echo "$USHER_USER is already in the 'input' group"
+else
+    echo "Adding $USHER_USER to the 'input' group (required for keyboard/IR access)"
+    sudo usermod -aG input "$USHER_USER"
+    REBOOT_NEEDED=true
+fi
+
 python3 -m venv venv
 ./venv/bin/pip install -q --upgrade pip
-./venv/bin/pip install -q -e .
+./venv/bin/pip install -q -e ".[linux]"
 
 sed \
     -e "s|__USER__|$USHER_USER|g" \

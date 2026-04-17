@@ -30,6 +30,7 @@ _KEY_MAP: dict[str, tuple[str, object]] = {
     "i":    ("action", "info"),
     "q":    ("action", "power"),
     "\x1b": ("action", "power"),   # standalone Escape
+    "\x03": ("action", "quit"),    # Ctrl+C in raw mode (no SIGINT generated)
     # Volume
     "+":    ("volume", "up"),
     "=":    ("volume", "up"),
@@ -57,7 +58,7 @@ async def keyboard_event_stream() -> AsyncIterator[tuple[str, object]]:
     thread.start()
     logger.info(
         "Keyboard input active  "
-        "(arrows/jk=ch, 0-9=digit, space=pause, m=mute, ±=vol, i=info, q=quit)"
+        "(arrows/jk=ch, 0-9=digit, space=pause, m=mute, ±=vol, i=info, q=power, Ctrl+C=quit)"
     )
 
     try:
