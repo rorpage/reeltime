@@ -110,8 +110,7 @@ M3U/XMLTV-compatible app.
 
 ---
 
-For more options - multiple reel channels, Scout web-page capture, custom ports,
-and state persistence - see the [Director README](director/README.md).
+For more options - multiple reel channels, Scout web-page capture, custom ports, and state persistence - see the [Director README](director/README.md).
 
 ---
 

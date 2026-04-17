@@ -1,0 +1,26 @@
+director:
+  url: "http://director:8080"
+  timeout: 5.0
+  cache_ttl: 300
+
+ir:
+  # device: "/dev/input/event0"   # uncomment to pin a specific device
+  digit_timeout: 1.5
+  keyboard_enabled: true          # active when running in a terminal; ignored by systemd service
+
+stream:
+  player: "mpv"
+  player_args:
+    - "--no-border"
+    - "--geometry=100%x100%+0+0"
+    # - "--audio-device=alsa/plughw:CARD=vc4hdmi"
+  ipc_socket: "/tmp/usher-mpv.sock"
+
+overlay:
+  enabled: true
+  display_secs: 4.0
+  fade_steps: 15
+  fade_interval_ms: 20
+  position: "bottom"
+  window_alpha: 0.92
+  font_family: "DejaVu Sans"

@@ -2,6 +2,10 @@
 # Reeltime Director - Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 #
+# Director reads each reeltime config file to derive the channel name, id,
+# icon, and Docker service name automatically - no need to repeat that
+# information here.
+#
 # After editing this file, regenerate docker-compose.director.yml with:
 #   node director/src/director.js mark director.config.yaml
 #
@@ -22,6 +26,8 @@ configs:
   # Optional: override the URL if the instance is not on the default Docker URL:
   # - path: ./channels/channel3/config.yaml
   #   url:  http://my-other-host:9000
+
+  # Add more channels as needed - just drop another config file here.
 
   # ── Boom channels (WeatherStar 4000) ──────────────────────────────────────
   # Inline spec - no config file needed. `mark` generates the boom container

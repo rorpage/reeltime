@@ -179,6 +179,7 @@ Each reel container writes its playback state to `<configDir>/state.<channel_id>
 |---------|-----------------|-------------------------------------------------------------------|
 | GET     | `/`             | Dark neon guide UI - all channels, auto-refreshes every 5 s      |
 | GET     | `/watch/:id`    | Embedded HLS.js player for the channel with the given id         |
+| GET     | `/channels`     | Channel list JSON: `[{ id, number, name, stream_url, logo_url }]` |
 | GET     | `/now`          | Aggregated now-playing JSON for all channels                     |
 | GET     | `/xmltv`        | Combined XMLTV guide (merged from all channels)                  |
 | GET     | `/xmltv.xml`    | Alias for `/xmltv`                                               |
