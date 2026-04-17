@@ -19,7 +19,9 @@ const {
   readChannelConfig,
   loadConfig,
   generateCompose,
+  channelStreamUrl,
   buildAggregatedM3U,
+  buildChannelList,
   buildPlayerHTML,
   buildAggregatedNow,
   buildHealthResponse,
@@ -577,7 +579,50 @@ test('generateCompose - mixer channel emits CHANNEL_ID and CHANNEL_NAME env vars
   assert.ok(section.includes('CHANNEL_NAME:'));
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. channelStreamUrl
+// ─────────────────────────────────────────────────────────────────────────────
 
+test('channelStreamUrl - uses hostname and port when hostname provided', () => {
+  const ch = { port: 10001, url: 'http://internal:8080' };
+  assert.equal(channelStreamUrl(ch, '192.168.1.5'), 'http://192.168.1.5:10001/stream.m3u8');
+});
+
+test('channelStreamUrl - falls back to ch.url when hostname omitted', () => {
+  const ch = { port: 10001, url: 'http://internal:8080' };
+  assert.equal(channelStreamUrl(ch, undefined), 'http://internal:8080/stream.m3u8');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. buildAggregatedM3U
+// ─────────────────────────────────────────────────────────────────────────────
+
+const sampleChannels = [
+  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },
+  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080', port: 10002, channelNum: 2 },
+];
+
+test('buildAggregatedM3U - starts with #EXTM3U', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.startsWith('#EXTM3U'));
+});
+
+test('buildAggregatedM3U - contains tvg-url pointing to /xmltv', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('x-tvg-url="http://localhost:10000/xmltv"'));
+});
+
+test('buildAggregatedM3U - contains correct stream URLs', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('http://localhost:10001/stream.m3u8'));
+  assert.ok(m3u.includes('http://localhost:10002/stream.m3u8'));
+});
+
+test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('Channel 1'));
+  assert.ok(m3u.includes('Channel 2'));
+});
 
 const sampleChannels = [
   { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },
@@ -607,7 +652,7 @@ test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. static index.html
+// 10. static index.html
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('index.html - static file exists', () => {
@@ -640,7 +685,7 @@ test('index.html - contains /watch/ link pattern in JS', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. buildPlayerHTML
+// 11. buildPlayerHTML
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildPlayerHTML - contains channel name', () => {
@@ -681,7 +726,7 @@ test('buildPlayerHTML - contains HLS.js script tag', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. buildAggregatedNow
+// 12. buildAggregatedNow
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildAggregatedNow - returns correct shape', () => {
@@ -748,7 +793,7 @@ test('buildAggregatedNow - uncached channel defaults to offline', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12. buildHealthResponse
+// 13. buildHealthResponse
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildHealthResponse - returns status: ok', () => {
@@ -790,7 +835,7 @@ test('buildHealthResponse - uncached channel is offline', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 13. buildAggregatedNow - upcoming array passthrough
+// 14. buildAggregatedNow - upcoming array passthrough
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildAggregatedNow - passes through upcoming array', () => {
@@ -826,7 +871,39 @@ test('buildAggregatedNow - upcoming absent when not returned by reel', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 14. TV guide HTML structure
+// 15. buildChannelList
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('buildChannelList - returns one entry per channel', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal(result.length, sampleChannels.length);
+});
+
+test('buildChannelList - maps channelNum to number', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal(result[0].number, 1);
+  assert.equal(result[1].number, 2);
+});
+
+test('buildChannelList - stream_url uses hostname and port', () => {
+  const result = buildChannelList(sampleChannels, '192.168.1.5');
+  assert.equal(result[0].stream_url, 'http://192.168.1.5:10001/stream.m3u8');
+  assert.equal(result[1].stream_url, 'http://192.168.1.5:10002/stream.m3u8');
+});
+
+test('buildChannelList - logo_url omitted when icon is empty', () => {
+  const result = buildChannelList(sampleChannels, 'localhost');
+  assert.equal('logo_url' in result[0], false);
+});
+
+test('buildChannelList - logo_url present when icon is set', () => {
+  const channels = [{ ...sampleChannels[0], icon: 'http://example.com/logo.png' }];
+  const result = buildChannelList(channels, 'localhost');
+  assert.equal(result[0].logo_url, 'http://example.com/logo.png');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 16. TV guide HTML structure
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('index.html - contains prog-rail for TV grid layout', () => {
@@ -846,4 +923,3 @@ test('index.html - contains upcoming array handling in JS', () => {
   const html = fs.readFileSync(indexPath, 'utf8');
   assert.ok(html.includes('upcoming'));
 });
-

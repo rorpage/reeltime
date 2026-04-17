@@ -1,0 +1,18 @@
+[Unit]
+Description=usher - IR remote control for the movie stack
+After=network-online.target graphical.target
+Wants=network-online.target graphical.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/venv/bin/usher --config __INSTALL_DIR__/config.yaml
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=__HOME__/.Xauthority
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+
+[Install]
+WantedBy=graphical.target
