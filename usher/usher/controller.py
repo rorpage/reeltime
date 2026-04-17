@@ -63,13 +63,14 @@ class UsherController:
         channels = await self.director.get_channels()
         if channels:
             logger.info(
-                "Ready -%d channels.  First: CH%d %s",
+                "Ready - %d channels.  Tuning to CH%d %s",
                 len(channels), channels[0].number, channels[0].name,
             )
+            await self._play(channels[0])
         else:
-            logger.warning("director returned no channels -check that service.")
+            logger.warning("director returned no channels - check that service.")
 
-        logger.info("usher is ready. Waiting for input...")
+        logger.info("usher is ready.")
 
         async for action_type, value in self._merged_event_stream(device):
             if not self._running:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import threading
 import tkinter as tk
@@ -69,6 +70,7 @@ class ChannelOverlay:
             self._q.put((kind, kw))
 
     def _tk_thread(self) -> None:
+        os.environ.setdefault("DISPLAY", ":0")
         try:
             self._root = tk.Tk()
             self._build_window()

@@ -158,10 +158,11 @@ class Streamer:
             self._close_ipc()
 
     async def _watch(self) -> None:
-        if not self._proc:
+        proc = self._proc
+        if not proc:
             return
-        _, stderr = await self._proc.communicate()
-        rc = self._proc.returncode
+        _, stderr = await proc.communicate()
+        rc = proc.returncode
         if rc not in (0, -15):
             msg = stderr.decode().strip() if stderr else "(no output)"
             logger.warning("Player exited unexpectedly (rc=%d): %s", rc, msg)
