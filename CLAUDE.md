@@ -53,6 +53,7 @@ stream:
   channel_id:  string   # optional; defaults to stream.name in snake_case
   loop:        boolean  # default true
   loop_count:  number   # -1 = infinite
+  shuffle:     boolean  # default false; randomize play order per cycle, re-shuffle each loop
 
 videos:
   - title:        string

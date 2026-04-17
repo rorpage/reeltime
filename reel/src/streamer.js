@@ -21,7 +21,7 @@ const fs                  = require('node:fs');
 const path                = require('node:path');
 const http                = require('node:http');
 const yaml                = require('js-yaml');
-const { toSnakeCase, escHtml, escXML } = require('../../shared/utils');
+const { toSnakeCase, escHtml, escXML, shuffleArray } = require('../../shared/utils');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
@@ -109,6 +109,7 @@ function loadConfig() {
     icon:       String(raw.stream?.icon || ''),
     loop:              raw.stream?.loop !== false,
     loopCount:  Number(raw.stream?.loop_count ?? -1),
+    shuffle:           raw.stream?.shuffle === true,
     videos,
   };
 }
@@ -218,16 +219,30 @@ function getScheduleWindow(fromMs, toMs, videos, loop, loopCount) {
     let vidIndex = seed.videoIndex;
     let pass     = seed.pass;
 
+    // When shuffling, work from a copy of the current cycle's order so that
+    // wrap-arounds can generate a speculative next shuffle without mutating
+    // the live shuffledIndexes array.  New speculative shuffles won't match
+    // what writeFifo will actually produce, but they give the guide a
+    // reasonable look-ahead beyond the current cycle.
+    let workingIndexes = shuffledIndexes ? [...shuffledIndexes] : null;
+
     while (cursor < toMs) {
       // Advance playlist pointer (wraps around and increments pass)
       vidIndex++;
-      if (vidIndex >= videos.length) { vidIndex = 0; pass++; }
+      if (vidIndex >= videos.length) {
+        vidIndex = 0;
+        pass++;
+        if (workingIndexes) {
+          workingIndexes = shuffleArray(videos.map((_, i) => i));
+        }
+      }
 
       // Termination - mirrors the outer-loop conditions in writeFifo()
       if (!loop && pass >= 1)                    break;
       if (loop && !forever && pass >= loopCount) break;
 
-      const v     = videos[vidIndex];
+      const actualIndex = workingIndexes ? workingIndexes[vidIndex] : vidIndex;
+      const v     = videos[actualIndex];
       const endAt = cursor + v.duration * 1000;
 
       if (endAt > fromMs) {
@@ -332,6 +347,11 @@ const playState = {
   totalQueued: 0,
 };
 
+// Pre-determined shuffle order for the current cycle (null when shuffle is off).
+// Each entry is an index into the videos[] array from config.  Persisted in the
+// state file so guide data and resume position survive container restarts.
+let shuffledIndexes = null;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // State persistence  -  survive container restarts
 //
@@ -353,12 +373,12 @@ let stateSaveInterval = null;
  *
  * @param {object[]} videos  Full video list from config (used for bounds check)
  */
-function loadState(videos) {
+function loadState(videos, shuffle) {
   try {
     if (!fs.existsSync(CFG.statePath)) return null;
 
     const raw = JSON.parse(fs.readFileSync(CFG.statePath, 'utf8'));
-    const { videoIndex, pass, positionSec, savedAt } = raw;
+    const { videoIndex, pass, positionSec, savedAt, shuffledIndexes: savedIndexes } = raw;
 
     if (typeof videoIndex !== 'number' || videoIndex < 0 || videoIndex >= videos.length) {
       warn('State file has invalid videoIndex - starting from beginning');
@@ -372,10 +392,20 @@ function loadState(videos) {
       warn('State file has invalid positionSec - starting from beginning');
       return null;
     }
-
     if (!savedAt || typeof savedAt !== 'string' || isNaN(new Date(savedAt).getTime())) {
       warn('State file has invalid savedAt - starting from beginning');
       return null;
+    }
+
+    if (shuffle) {
+      if (
+        !Array.isArray(savedIndexes) ||
+        savedIndexes.length !== videos.length ||
+        !savedIndexes.every(idx => Number.isInteger(idx) && idx >= 0 && idx < videos.length)
+      ) {
+        warn('State file has missing or invalid shuffledIndexes - starting from beginning');
+        return null;
+      }
     }
 
     const ageMs = Date.now() - new Date(savedAt).getTime();
@@ -385,7 +415,7 @@ function loadState(videos) {
     }
 
     info(`Resuming from saved state: pass ${pass + 1}, video index ${videoIndex}, position ${positionSec.toFixed(1)}s`);
-    return { videoIndex, pass, positionSec };
+    return { videoIndex, pass, positionSec, ...(shuffle && { shuffledIndexes: savedIndexes }) };
   } catch (e) {
     warn(`Could not load state file: ${e.message}`);
     return null;
@@ -406,6 +436,7 @@ function saveState() {
     pass:        entry.pass,
     positionSec: Math.round(positionSec * 10) / 10,
     savedAt:     new Date().toISOString(),
+    ...(shuffledIndexes !== null && { shuffledIndexes }),
   });
 
   const tmp = CFG.statePath + '.tmp';
@@ -443,7 +474,7 @@ function buildConcatEntry({ url, duration }, inpoint) {
   return entry;
 }
 
-function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
+function writeFifo(videos, { loop, loopCount, shuffle }, resumeFrom = null) {
   return new Promise((resolve, reject) => {
     const forever = loop && loopCount <= 0;
     const totalPasses = loop
@@ -500,6 +531,18 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
         // Skip entire passes that precede the resume point
         if (resumeFrom && pass < resumeFrom.pass) continue;
 
+        // Set up the shuffle order for this pass.  On the resume pass restore
+        // the saved order so the sequence matches what was playing before the
+        // restart.  Every other pass (and all passes on a cold start) gets a
+        // fresh shuffle so every cycle plays in a different random order.
+        if (shuffle) {
+          if (resumeFrom && !resumeApplied && resumeFrom.shuffledIndexes) {
+            shuffledIndexes = resumeFrom.shuffledIndexes;
+          } else {
+            shuffledIndexes = shuffleArray(videos.map((_, idx) => idx));
+          }
+        }
+
         const displayTotal = forever ? `∞ (prefill ${totalPasses})` : totalPasses;
         info(`── Pass ${pass + 1} / ${displayTotal} ${'─'.repeat(36)}`);
 
@@ -509,7 +552,7 @@ function writeFifo(videos, { loop, loopCount }, resumeFrom = null) {
           // Skip individual videos before the resume index (resume pass only)
           if (resumeFrom && !resumeApplied && i < resumeFrom.videoIndex) continue;
 
-          const video = videos[i];
+          const video = shuffle ? videos[shuffledIndexes[i]] : videos[i];
 
           // ── Update state ──────────────────────────────────────────────────
           playState.pass        = pass;
@@ -983,7 +1026,7 @@ process.on('uncaughtException', err => {
   createFifo();
 
   const config  = loadConfig();
-  const { name, channelId, icon, videos, loop, loopCount } = config;
+  const { name, channelId, icon, videos, loop, loopCount, shuffle } = config;
   const forever = loop && loopCount <= 0;
 
   // Resolve state file path now that channel_id is known.
@@ -995,6 +1038,7 @@ process.on('uncaughtException', err => {
   info(`Stream    : "${name}"  (channel: ${channelId})`);
   if (icon) info(`Icon      : ${icon}`);
   info(`Loop      : ${!loop ? 'play once' : forever ? `infinite (prefill=${CFG.foreverPasses} passes)` : `${loopCount}×`}`);
+  if (shuffle) info('Shuffle   : on');
   info(`Videos    : ${videos.length}`);
   videos.forEach((v, i) =>
     info(`  ${String(i + 1).padStart(3)}. [${String(v.duration).padStart(6)} s]  ${v.title}`)
@@ -1013,7 +1057,7 @@ process.on('uncaughtException', err => {
   let cycle = 0;
 
   // Load saved state once; applied only to the first writeFifo call.
-  let resumeState = loadState(videos);
+  let resumeState = loadState(videos, shuffle);
 
   while (true) {
     cycle++;
@@ -1025,7 +1069,7 @@ process.on('uncaughtException', err => {
     //   Node.js writes first entry →  ffmpeg starts decoding
     const [ffmpegCode] = await Promise.all([
       startFFmpeg(),
-      writeFifo(videos, { loop, loopCount }, resumeState),
+      writeFifo(videos, { loop, loopCount, shuffle }, resumeState),
     ]);
     resumeState = null;  // resume only on the first cycle
 

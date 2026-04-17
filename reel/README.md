@@ -86,6 +86,7 @@ stream:
 - channel_id: optional stable URL-safe override for XMLTV/M3U id (defaults to stream name in snake_case)
 - loop: true or false
 - loop_count: -1 for infinite, or N for finite loops
+- shuffle: true to randomize play order; re-shuffles each time the full list has been played
 
 videos:
 - title: display title
