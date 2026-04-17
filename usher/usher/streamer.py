@@ -166,7 +166,8 @@ class Streamer:
         if rc not in (0, -15):
             msg = stderr.decode().strip() if stderr else "(no output)"
             logger.warning("Player exited unexpectedly (rc=%d): %s", rc, msg)
-        self._close_ipc()
-        self._proc        = None
-        self._current_url = None
-        self._paused      = False
+        if self._proc is proc:
+            self._close_ipc()
+            self._proc        = None
+            self._current_url = None
+            self._paused      = False
