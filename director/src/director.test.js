@@ -477,6 +477,109 @@ test('generateCompose - scout/boom channel with no volumes has no volumes block'
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 7b. mixer channel in generateCompose / loadConfig
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('loadConfig - parses mixer inline channel correctly', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n      SHUFFLE_MUSIC: "true"\n`
+  );
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels.length, 2);
+  const mixer = cfg.channels[1];
+  assert.equal(mixer.name, 'My Music');
+  assert.equal(mixer.type, 'mixer');
+  assert.equal(mixer.id,   'my_music');
+  assert.equal(mixer.environment.MUSIC_DIR,    '/music');
+  assert.equal(mixer.environment.SHUFFLE_MUSIC, 'true');
+});
+
+test('generateCompose - mixer channel emits correct image reference', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir, true);   // useImages = true
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('reeltime-my_music:'));
+  assert.ok(out.includes('ghcr.io/rorpage/reeltime-mixer:latest'));
+});
+
+test('generateCompose - mixer channel emits correct Dockerfile reference when building', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir, false);  // useImages = false
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('dockerfile: mixer/Dockerfile'));
+});
+
+test('generateCompose - mixer channel with volumes emits volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    volumes:\n      - /data/music:/music:ro\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('- /data/music:/music:ro'));
+});
+
+test('generateCompose - mixer channel with no volumes has no volumes block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  const serviceStart = out.indexOf('reeltime-my_music:');
+  const serviceBlock = out.slice(serviceStart);
+  const nextService  = serviceBlock.indexOf('\n  reeltime-', 1);
+  const section      = nextService === -1 ? serviceBlock : serviceBlock.slice(0, nextService);
+  assert.ok(!section.includes('volumes:'));
+});
+
+test('generateCompose - mixer channel emits CHANNEL_ID and CHANNEL_NAME env vars', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "My Music"\n    type: mixer\n` +
+    `    environment:\n      MUSIC_DIR: "/music"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  const serviceStart = out.indexOf('reeltime-my_music:');
+  const section      = out.slice(serviceStart);
+  assert.ok(section.includes('CHANNEL_ID:'));
+  assert.ok(section.includes('CHANNEL_NAME:'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 8. channelStreamUrl
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -521,8 +624,35 @@ test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
   assert.ok(m3u.includes('Channel 2'));
 });
 
+const sampleChannels = [
+  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },
+  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080', port: 10002, channelNum: 2 },
+];
+
+test('buildAggregatedM3U - starts with #EXTM3U', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.startsWith('#EXTM3U'));
+});
+
+test('buildAggregatedM3U - contains tvg-url pointing to /xmltv', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('x-tvg-url="http://localhost:10000/xmltv"'));
+});
+
+test('buildAggregatedM3U - contains correct stream URLs', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('http://localhost:10001/stream.m3u8'));
+  assert.ok(m3u.includes('http://localhost:10002/stream.m3u8'));
+});
+
+test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
+  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
+  assert.ok(m3u.includes('Channel 1'));
+  assert.ok(m3u.includes('Channel 2'));
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. static index.html
+// 10. static index.html
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('index.html - static file exists', () => {
@@ -555,7 +685,7 @@ test('index.html - contains /watch/ link pattern in JS', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. buildPlayerHTML
+// 11. buildPlayerHTML
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildPlayerHTML - contains channel name', () => {
@@ -596,7 +726,7 @@ test('buildPlayerHTML - contains HLS.js script tag', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. buildAggregatedNow
+// 12. buildAggregatedNow
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildAggregatedNow - returns correct shape', () => {
@@ -663,7 +793,7 @@ test('buildAggregatedNow - uncached channel defaults to offline', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 12. buildHealthResponse
+// 13. buildHealthResponse
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildHealthResponse - returns status: ok', () => {
@@ -705,7 +835,7 @@ test('buildHealthResponse - uncached channel is offline', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 13. buildAggregatedNow - upcoming array passthrough
+// 14. buildAggregatedNow - upcoming array passthrough
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildAggregatedNow - passes through upcoming array', () => {
@@ -741,7 +871,7 @@ test('buildAggregatedNow - upcoming absent when not returned by reel', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 14. buildChannelList
+// 15. buildChannelList
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('buildChannelList - returns one entry per channel', () => {
@@ -773,7 +903,7 @@ test('buildChannelList - logo_url present when icon is set', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 15. TV guide HTML structure
+// 16. TV guide HTML structure
 // ─────────────────────────────────────────────────────────────────────────────
 
 test('index.html - contains prog-rail for TV grid layout', () => {
@@ -793,4 +923,3 @@ test('index.html - contains upcoming array handling in JS', () => {
   const html = fs.readFileSync(indexPath, 'utf8');
   assert.ok(html.includes('upcoming'));
 });
-

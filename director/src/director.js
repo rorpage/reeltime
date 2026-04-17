@@ -33,7 +33,7 @@ const POLL_INTERVAL_MS   = 10_000;
 const NEON_COLORS        = ['#00d4ff', '#39ff14', '#ff2d78'];
 const DEFAULT_PORT       = 10000;
 // Default internal container port per channel type
-const INTERNAL_PORT      = { reel: 8080, scout: 8080, boom: 8080 };
+const INTERNAL_PORT      = { reel: 8080, scout: 8080, boom: 8080, mixer: 8080 };
 const DEFAULT_CFG_PATH   = '/config/director.config.yaml';
 const INDEX_HTML         = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 const FAVICON_SVG        = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\uD83D\uDCFA</text></svg>";
@@ -99,7 +99,7 @@ function readChannelConfig(absPath, index, urlOverride, volumes) {
  *
  * Inline entry shape:
  *   - name:        "WeatherStar 4000"
- *     type:        boom          # required: boom | scout
+ *     type:        boom          # required: boom | scout | mixer
  *     id:          weather       # optional; derived from name if omitted
  *     icon:        "https://..."
  *     description: "..."

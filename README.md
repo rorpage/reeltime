@@ -7,11 +7,12 @@ A self-hosted continuous HLS video streaming suite.
 | **[🎥 Reel](reel/README.md)** | Playlist-driven HLS streamer - loops a YAML video playlist as a live m3u8 feed |
 | **[🧢 Scout](scout/README.md)** | Web-page capture streamer - turns any URL into a live HLS channel |
 | **[⚡ Boom](boom/README.md)** | WeatherStar 4000 streamer - captures WS4KP as a live retro weather channel |
-| **[🎬 Director](director/README.md)** | Multi-channel guide - aggregates Reel, Scout, and Boom into one TV guide UI, XMLTV, and M3U |
+| **[🎚️ Mixer](mixer/README.md)** | Music channel streamer - plays a directory of MP3 files as a live HLS channel |
+| **[🎬 Director](director/README.md)** | Multi-channel guide - aggregates Reel, Scout, Boom, and Mixer into one TV guide UI, XMLTV, and M3U |
 
 **Just want to get running?** See the [Director quick start](director/README.md) - all you need is Docker.
 
-**Single channel only?** See the [Reel](reel/README.md), [Scout](scout/README.md), or [Boom](boom/README.md) quick starts.
+**Single channel only?** See the [Reel](reel/README.md), [Scout](scout/README.md), [Boom](boom/README.md), or [Mixer](mixer/README.md) quick starts.
 
 ---
 
@@ -80,6 +81,22 @@ configs:
       WS4KP_PORT: "8080"
 ```
 
+Want a music channel? Add Mixer (mount a directory of MP3 files):
+
+```yaml
+configs:
+  - ./channels/my_channel/config.yaml
+
+  - name:        "My Music"
+    type:        mixer
+    description: "Background music"
+    volumes:
+      - /path/to/your/music:/music:ro
+    environment:
+      MUSIC_DIR:    "/music"
+      SHUFFLE_MUSIC: "true"
+```
+
 ### 4. Generate the compose file
 
 ```bash
@@ -121,6 +138,7 @@ Utilities in the `tools/` folder for working with content.
 | Tool | Description |
 |------|-------------|
 | [archive-org-import](tools/archive-org-import/README.md) | Import Archive.org content into a Reeltime config - single items or bulk season/episode ranges |
+| [convert-audio](tools/convert-audio/README.md) | Convert non-MP3 audio files to MP3 for use with Mixer or Boom music directories |
 | [convert-mkv](tools/convert-mkv/README.md) | Pre-transcode MKV files to H.264 MP4 to prevent buffering when streaming x265/10-bit sources |
 | [merge-configs](tools/merge-configs/README.md) | Merge an Archive.org config (real URLs, durations) with a TVmaze config (clean metadata) into one, keyed on episode number |
 | [tvmaze-import](tools/tvmaze-import/README.md) | Generate a Reeltime config scaffold from TVmaze episode data - fills in all metadata, leaving URL fields for you to complete |
