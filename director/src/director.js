@@ -117,6 +117,16 @@ function parseInlineChannel(entry, index) {
   const id          = entry.id ? String(entry.id) : toSnakeCase(name);
   const icon        = String(entry.icon        || '');
   const description = String(entry.description || '');
+
+  // External channels point directly at an existing stream URL - no container needed.
+  if (type === 'external') {
+    if (!entry.url) {
+      throw new Error(`External channel "${name}" requires a "url" field`);
+    }
+    const resolvedUrl = String(entry.url).replace(/\/$/, '');
+    return { id, name, icon, description, url: resolvedUrl, port: null, channelNum: index + 1, type, isExternal: true, environment: {}, volumes: [], configPath: null };
+  }
+
   const environment = (entry.environment && typeof entry.environment === 'object')
     ? entry.environment : {};
   const volumes = (Array.isArray(entry.volumes)) ? entry.volumes.map(String) : [];
@@ -225,7 +235,11 @@ function generateCompose(directorConfigPath, useImages = false) {
   ];
 
   cfg.channels.forEach(ch => {
-    lines.push(`# ${ch.name.padEnd(16)} (reeltime-${ch.id}): http://localhost:${ch.port}  [${ch.type}]`);
+    if (ch.isExternal) {
+      lines.push(`# ${ch.name.padEnd(16)} (external): ${ch.url}  [external - not managed by this compose]`);
+    } else {
+      lines.push(`# ${ch.name.padEnd(16)} (reeltime-${ch.id}): http://localhost:${ch.port}  [${ch.type}]`);
+    }
   });
 
   // ── director service ──────────────────────────────────────────────────────
@@ -270,9 +284,12 @@ function generateCompose(directorConfigPath, useImages = false) {
     '    environment:',
     `      PORT:            "${DEFAULT_PORT}"`,
     `      DIRECTOR_CONFIG: "/config/${dirCfgBase}"`,
-    '    depends_on:',
   );
-  cfg.channels.forEach(ch => lines.push(`      - reeltime-${ch.id}`));
+  const managedChannels = cfg.channels.filter(ch => !ch.isExternal);
+  if (managedChannels.length > 0) {
+    lines.push('    depends_on:');
+    managedChannels.forEach(ch => lines.push(`      - reeltime-${ch.id}`));
+  }
 
   lines.push(
     '    healthcheck:',
@@ -285,6 +302,9 @@ function generateCompose(directorConfigPath, useImages = false) {
 
   // ── channel services ──────────────────────────────────────────────────────
   cfg.channels.forEach(ch => {
+    // External channels are not managed by this compose file - no service block emitted.
+    if (ch.isExternal) return;
+
     const internalPort = INTERNAL_PORT[ch.type] ?? 8080;
     lines.push('', `  reeltime-${ch.id}:`);
 
@@ -382,6 +402,7 @@ function generateCompose(directorConfigPath, useImages = false) {
  * @returns {string}
  */
 function channelStreamUrl(ch, hostname) {
+  if (ch.isExternal) return ch.url;
   return hostname
     ? `http://${hostname}:${ch.port}/stream.m3u8`
     : `${ch.url}/stream.m3u8`;
@@ -430,9 +451,17 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
   return {
     name: directorName,
     channels: channels.map(ch => {
-      const cached = channelCache.get(ch.id) || {};
-      // Strip internal `stream` field from the polled now object
-      const rawNow = cached.now ? (({ stream: _s, ...rest }) => rest)(cached.now) : null;
+      let rawNow;
+      let online;
+      if (ch.isExternal) {
+        rawNow = { current: { title: ch.name, description: ch.description || '' } };
+        online = true;
+      } else {
+        const cached = channelCache.get(ch.id) || {};
+        // Strip internal `stream` field from the polled now object
+        rawNow = cached.now ? (({ stream: _s, ...rest }) => rest)(cached.now) : null;
+        online = cached.online ?? false;
+      }
       const entry = {
         id:         ch.id,
         name:       ch.name,
@@ -440,7 +469,7 @@ function buildAggregatedNow(directorName, channels, channelCache, hostname) {
         port:       ch.port,
         stream:     channelStreamUrl(ch, hostname),
         now:        rawNow,
-        online:     cached.online ?? false,
+        online,
       };
       return entry;
     }),
@@ -462,7 +491,7 @@ function buildHealthResponse(channels, channelCache) {
       return {
         id:     ch.id,
         name:   ch.name,
-        online: cached.online ?? false,
+        online: ch.isExternal ? true : (cached.online ?? false),
       };
     }),
   };
@@ -920,8 +949,13 @@ function fetchText(rawUrl) {
  * @param {Map}   channelCache
  */
 async function pollChannels(channels, channelCache) {
+  // External channels have no container to poll - mark them permanently online.
+  channels.filter(ch => ch.isExternal).forEach(ch => {
+    channelCache.set(ch.id, { online: true, now: null, lastOk: Date.now() });
+  });
+
   await Promise.allSettled(
-    channels.map(async ch => {
+    channels.filter(ch => !ch.isExternal).map(async ch => {
       try {
         const [nowData, healthData] = await Promise.all([
           fetchJson(`${ch.url}/now?upcoming=120`),
@@ -1072,15 +1106,38 @@ function createRequestHandler(directorName, channels, channelCache) {
  * Merge XMLTV documents from multiple channels into one combined document.
  * Extracts <channel> and <programme> elements from each document and wraps
  * them in a single <tv> root.
+ * External channels are synthesized directly - no HTTP fetch is made for them.
  */
 function mergeXmltvDocuments(channels, settledResults) {
   const channelBlocks   = [];
   const programmeBlocks = [];
 
+  /** Format a Date as an XMLTV timestamp: YYYYMMDDHHmmss +0000 */
+  function xmltvDate(dt) {
+    return new Date(dt).toISOString().replace(/[-:T]/g, '').slice(0, 14) + ' +0000';
+  }
+
   settledResults.forEach((result, i) => {
+    const ch = channels[i];
+
+    // Synthesize XMLTV blocks for external channels - they have no /xmltv endpoint.
+    if (ch.isExternal) {
+      const iconAttr = ch.icon ? ` <icon src="${escXML(ch.icon)}" />` : '';
+      channelBlocks.push(
+        `<channel id="${escXML(ch.id)}"><display-name>${escXML(ch.name)}</display-name>${iconAttr}</channel>`,
+      );
+      const start = xmltvDate(Date.now());
+      const end   = xmltvDate(Date.now() + 24 * 60 * 60 * 1000);
+      const desc  = ch.description ? `<desc lang="en">${escXML(ch.description)}</desc>` : '';
+      programmeBlocks.push(
+        `<programme start="${start}" stop="${end}" channel="${escXML(ch.id)}">` +
+        `<title lang="en">${escXML(ch.name)}</title>${desc}</programme>`,
+      );
+      return;
+    }
+
     if (result.status !== 'fulfilled') return;
     const { body } = result.value;
-    const ch = channels[i];
     if (!body) return;
 
     // Extract <channel ...>...</channel> blocks (tempered greedy to avoid ReDoS)

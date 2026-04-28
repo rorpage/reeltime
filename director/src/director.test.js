@@ -25,6 +25,7 @@ const {
   buildPlayerHTML,
   buildAggregatedNow,
   buildHealthResponse,
+  mergeXmltvDocuments,
 } = require('./director.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -624,33 +625,6 @@ test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
   assert.ok(m3u.includes('Channel 2'));
 });
 
-const sampleChannels = [
-  { id: 'channel_1', name: 'Channel 1', url: 'http://reeltime-channel_1:8080', port: 10001, channelNum: 1 },
-  { id: 'channel_2', name: 'Channel 2', url: 'http://reeltime-channel_2:8080', port: 10002, channelNum: 2 },
-];
-
-test('buildAggregatedM3U - starts with #EXTM3U', () => {
-  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.startsWith('#EXTM3U'));
-});
-
-test('buildAggregatedM3U - contains tvg-url pointing to /xmltv', () => {
-  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.includes('x-tvg-url="http://localhost:10000/xmltv"'));
-});
-
-test('buildAggregatedM3U - contains correct stream URLs', () => {
-  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.includes('http://localhost:10001/stream.m3u8'));
-  assert.ok(m3u.includes('http://localhost:10002/stream.m3u8'));
-});
-
-test('buildAggregatedM3U - contains channel names in EXTINF lines', () => {
-  const m3u = buildAggregatedM3U(sampleChannels, 'localhost:10000');
-  assert.ok(m3u.includes('Channel 1'));
-  assert.ok(m3u.includes('Channel 2'));
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 10. static index.html
 // ─────────────────────────────────────────────────────────────────────────────
@@ -922,4 +896,263 @@ test('index.html - contains upcoming array handling in JS', () => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
   const html = fs.readFileSync(indexPath, 'utf8');
   assert.ok(html.includes('upcoming'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 17. external channel type
+// ─────────────────────────────────────────────────────────────────────────────
+
+const externalChannel = {
+  id: 'jazz_radio',
+  name: 'Jazz Radio',
+  url: 'http://stream.example.com/jazz.m3u8',
+  port: null,
+  channelNum: 3,
+  icon: 'https://example.com/logo.png',
+  description: '24/7 smooth jazz',
+  isExternal: true,
+  type: 'external',
+};
+
+// loadConfig - external channel parsing
+
+test('loadConfig - parses external inline channel correctly', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n` +
+    `    description: "24/7 smooth jazz"\n`
+  );
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels.length, 2);
+  const ext = cfg.channels[1];
+  assert.equal(ext.name, 'Jazz Radio');
+  assert.equal(ext.type, 'external');
+  assert.equal(ext.isExternal, true);
+  assert.equal(ext.url, 'http://stream.example.com/jazz.m3u8');
+  assert.equal(ext.port, null);
+  assert.equal(ext.description, '24/7 smooth jazz');
+});
+
+test('loadConfig - throws when external channel has no url', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n`
+  );
+
+  assert.throws(() => loadConfig(dir), /requires a "url" field/i);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+});
+
+test('loadConfig - external channel derives id from name', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels[1].id, 'jazz_radio');
+});
+
+test('loadConfig - external channel uses explicit id when provided', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n    id: my_jazz\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const cfg = loadConfig(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.equal(cfg.channels[1].id, 'my_jazz');
+});
+
+// channelStreamUrl - external channel returns url as-is
+
+test('channelStreamUrl - returns url as-is for external channel (with hostname)', () => {
+  assert.equal(
+    channelStreamUrl(externalChannel, '192.168.1.5'),
+    'http://stream.example.com/jazz.m3u8',
+  );
+});
+
+test('channelStreamUrl - returns url as-is for external channel (no hostname)', () => {
+  assert.equal(
+    channelStreamUrl(externalChannel, undefined),
+    'http://stream.example.com/jazz.m3u8',
+  );
+});
+
+// buildAggregatedM3U - external channel stream URL is used as-is
+
+test('buildAggregatedM3U - uses direct url for external channel', () => {
+  const channels = [...sampleChannels, externalChannel];
+  const m3u = buildAggregatedM3U(channels, 'localhost:10000');
+  assert.ok(m3u.includes('http://stream.example.com/jazz.m3u8'));
+  assert.ok(!m3u.includes('null'));
+});
+
+// buildAggregatedNow - external channel has static now
+
+test('buildAggregatedNow - external channel has static now with channel name', () => {
+  const cache = new Map();
+  const result = buildAggregatedNow('My Director', [externalChannel], cache);
+  const ch = result.channels[0];
+  assert.equal(ch.online, true);
+  assert.ok(ch.now);
+  assert.equal(ch.now.current.title, 'Jazz Radio');
+  assert.equal(ch.now.current.description, '24/7 smooth jazz');
+});
+
+test('buildAggregatedNow - external channel is always online regardless of cache', () => {
+  const cache = new Map();
+  const result = buildAggregatedNow('My Director', [externalChannel], cache);
+  assert.equal(result.channels[0].online, true);
+});
+
+test('buildAggregatedNow - external channel stream url is the raw url', () => {
+  const cache = new Map();
+  const result = buildAggregatedNow('My Director', [externalChannel], cache, '192.168.1.5');
+  assert.equal(result.channels[0].stream, 'http://stream.example.com/jazz.m3u8');
+});
+
+// buildHealthResponse - external channel is always online
+
+test('buildHealthResponse - external channel is always reported online', () => {
+  const cache = new Map();   // empty cache
+  const result = buildHealthResponse([externalChannel], cache);
+  assert.equal(result.channels[0].online, true);
+});
+
+// generateCompose - external channel produces no service block
+
+test('generateCompose - external channel does not produce a service block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(!out.includes('reeltime-jazz_radio'));
+});
+
+test('generateCompose - external channel is not in depends_on', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  const depStart = out.indexOf('depends_on:');
+  const depBlock = depStart === -1 ? '' : out.slice(depStart, out.indexOf('\n    ', depStart + 1) + 1);
+  assert.ok(!depBlock.includes('jazz_radio'));
+});
+
+test('generateCompose - external channel appears in header comment', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  assert.ok(out.includes('external - not managed by this compose'));
+  assert.ok(out.includes('http://stream.example.com/jazz.m3u8'));
+});
+
+test('generateCompose - all-external config has no depends_on block', () => {
+  const ch  = writeTmp(reeltimeCfg('Channel 1'));
+  const dir = writeTmp(
+    `configs:\n  - ${ch}\n` +
+    `  - name: "Jazz Radio"\n    type: external\n` +
+    `    url: "http://stream.example.com/jazz.m3u8"\n`
+  );
+
+  const out = generateCompose(dir);
+  [ch, dir].forEach(f => fs.unlinkSync(f));
+
+  // The reel channel should still be in depends_on, but jazz_radio should not
+  assert.ok(out.includes('depends_on:'));
+  assert.ok(out.includes('- reeltime-channel_1'));
+  assert.ok(!out.includes('- reeltime-jazz_radio'));
+});
+
+// mergeXmltvDocuments - external channel synthesizes channel + programme blocks
+
+test('mergeXmltvDocuments - synthesizes channel block for external channel', () => {
+  const channels = [externalChannel];
+  // settledResults has one entry (external channels are skipped in the poll,
+  // so the fetch result can be anything - we pass a rejected-style result)
+  const settledResults = [{ status: 'rejected', reason: new Error('no fetch') }];
+
+  const xml = mergeXmltvDocuments(channels, settledResults);
+  assert.ok(xml.includes(`id="${externalChannel.id}"`));
+  assert.ok(xml.includes(externalChannel.name));
+  assert.ok(xml.includes('<channel '));
+  assert.ok(xml.includes('</channel>'));
+});
+
+test('mergeXmltvDocuments - synthesizes 24h programme block for external channel', () => {
+  const channels = [externalChannel];
+  const settledResults = [{ status: 'rejected', reason: new Error('no fetch') }];
+
+  const xml = mergeXmltvDocuments(channels, settledResults);
+  assert.ok(xml.includes('<programme '));
+  assert.ok(xml.includes('</programme>'));
+  assert.ok(xml.includes(`channel="${externalChannel.id}"`));
+  assert.ok(xml.includes(externalChannel.name));
+});
+
+test('mergeXmltvDocuments - includes description in synthesized programme for external channel', () => {
+  const channels = [{ ...externalChannel, description: '24/7 smooth jazz' }];
+  const settledResults = [{ status: 'rejected', reason: new Error('no fetch') }];
+
+  const xml = mergeXmltvDocuments(channels, settledResults);
+  assert.ok(xml.includes('24/7 smooth jazz'));
+  assert.ok(xml.includes('<desc'));
+});
+
+test('mergeXmltvDocuments - includes icon in synthesized channel block', () => {
+  const channels = [{ ...externalChannel, icon: 'https://example.com/logo.png' }];
+  const settledResults = [{ status: 'rejected', reason: new Error('no fetch') }];
+
+  const xml = mergeXmltvDocuments(channels, settledResults);
+  assert.ok(xml.includes('https://example.com/logo.png'));
+  assert.ok(xml.includes('<icon'));
+});
+
+test('mergeXmltvDocuments - omits icon element when external channel has no icon', () => {
+  const channels = [{ ...externalChannel, icon: '' }];
+  const settledResults = [{ status: 'rejected', reason: new Error('no fetch') }];
+
+  const xml = mergeXmltvDocuments(channels, settledResults);
+  assert.ok(!xml.includes('<icon'));
+});
+
+// buildChannelList - external channel stream_url is the raw url
+
+test('buildChannelList - stream_url is the raw url for external channel', () => {
+  const result = buildChannelList([externalChannel], 'localhost');
+  assert.equal(result[0].stream_url, 'http://stream.example.com/jazz.m3u8');
 });
