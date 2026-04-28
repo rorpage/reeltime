@@ -912,6 +912,9 @@ const externalChannel = {
   description: '24/7 smooth jazz',
   isExternal: true,
   type: 'external',
+  environment: {},
+  volumes: [],
+  configPath: null,
 };
 
 // loadConfig - external channel parsing

@@ -1122,7 +1122,7 @@ function mergeXmltvDocuments(channels, settledResults) {
 
     // Synthesize XMLTV blocks for external channels - they have no /xmltv endpoint.
     if (ch.isExternal) {
-      const iconAttr = ch.icon ? ` <icon src="${escXML(ch.icon)}" />` : '';
+      const iconAttr = ch.icon ? `<icon src="${escXML(ch.icon)}" />` : '';
       channelBlocks.push(
         `<channel id="${escXML(ch.id)}"><display-name>${escXML(ch.name)}</display-name>${iconAttr}</channel>`,
       );
